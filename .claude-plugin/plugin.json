@@ -1,0 +1,9 @@
+{
+  "name": "devflow",
+  "description": "Structured AI-assisted development workflow — from project discovery to verification. Six commands guide you through requirements, design, implementation, and testing with full-chain numbered tracking.",
+  "author": {
+    "name": "NumberTheEleven",
+    "email": "numtheeleven@gmail.com"
+  },
+  "version": "1.0.0"
+}
