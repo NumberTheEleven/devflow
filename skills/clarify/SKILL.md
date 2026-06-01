@@ -26,8 +26,9 @@ Ask questions ONE AT A TIME. Each question should deepen understanding:
 
 **Key dimensions to explore:**
 - **Purpose:** What problem does this solve? Who benefits?
+- **Maturity expectation:** Is this a throwaway prototype, an MVP for validation, or a production-grade feature? What level of polish is expected? AI defaults to demo-level — failing to clarify this leads to code that looks finished but isn't ready for real use.
 - **Constraints:** Any technical, time, or resource constraints?
-- **Success criteria:** How will we know this is done and done well?
+- **Success criteria:** How will we know this is done and done well? Include both functional (it works) and non-functional (it handles errors, covers edge cases, has complete UI states).
 - **Scope:** What's in scope? What's explicitly NOT in scope?
 - **Users:** Who are the end users? What's their workflow?
 - **Existing code:** Any relevant parts of the codebase to be aware of?

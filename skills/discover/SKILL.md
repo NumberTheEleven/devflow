@@ -58,6 +58,18 @@ Run these analyses:
 - Missing input validation
 - Missing logging/observability
 
+**Demo Smells (patterns that indicate demo-level rather than production code):**
+- Hardcoded mock data or API responses instead of real data sources
+- Console.log instead of proper logging
+- Missing loading, empty, and error states in UI
+- No error boundaries or global error handling
+- Click handlers without loading/disabled states (no debounce on submissions)
+- Hardcoded URLs, keys, or secrets in source files
+- No form validation or sanitization
+- Comments like "TODO: implement this later" on critical paths
+- Static/read-only UI with no user interaction flow
+- Missing confirmation dialogs on destructive actions
+
 ### Step 3: Generate Prioritized Report
 
 Format the output as a structured report:

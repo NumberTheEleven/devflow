@@ -54,11 +54,25 @@ Create appropriate technical diagrams in Mermaid format:
 
 Choose the diagram type(s) that best represent the technical design. Include in the architecture section of the conversation.
 
-### Step 4: Execute Tasks
+### Step 4: Production-Grade Baseline (CRITICAL)
+
+**Default assumption: Every implementation targets production quality.** AI tends to produce demo-level code (hardcoded data, missing error states, no edge case handling) unless explicitly told otherwise. Before dispatching ANY task, establish this baseline:
+
+Every piece of code must satisfy:
+- **Error handling:** Every async operation, API call, file I/O, and user input path has explicit error handling. Errors are surfaced to the user in human-readable form, not swallowed or console-logged.
+- **Edge cases:** Null/empty/undefined states are handled explicitly. Loading, empty, error, and success states are all represented in the UI. Boundary conditions (max length, timeout, rate limit) are handled.
+- **Data integrity:** No hardcoded magic values, no fake/stub data in production paths. Configuration comes from environment variables or config files. Database queries have proper constraints and indexes.
+- **UI completeness:** Every interactive element has hover, focus, disabled, and active states. Forms have validation feedback. Destructive actions have confirmation. Empty states have helpful guidance, not blank screens.
+- **Observability:** Key operations are logged with enough context to debug in production. Errors include stack traces or diagnostic information.
+- **Security:** User input is validated and sanitized. SQL queries use parameterized statements. Sensitive data is never logged or exposed client-side. Authentication and authorization checks are in place.
+
+**This baseline applies to ALL implementation tasks.** Even if the user says "just a quick prototype" or "simple demo," default to production quality for the parts that ARE implemented. A prototype with solid foundations is better than one that needs a full rewrite.
+
+### Step 5: Execute Tasks
 
 **Independent tasks (no dependencies):**
 - Dispatch in parallel using sub-agents
-- Each sub-agent gets: full task description, affected files, coding standards
+- Each sub-agent gets: full task description, affected files, coding standards, AND the Production-Grade Baseline from Step 4
 - Each sub-agent follows TDD: write failing test → implement → verify → commit
 
 **Dependent tasks (sequential dependencies):**
@@ -68,10 +82,11 @@ Choose the diagram type(s) that best represent the technical design. Include in 
 
 **Per-task quality gates:**
 - TDD: test first, verify it fails, implement, verify it passes
+- Production-grade check: verify the implementation satisfies the Step 4 baseline (error handling, edge cases, UI completeness, etc.)
 - Code review: self-review the diff before committing
 - Commit with descriptive message referencing T-xxx and R-xxx
 
-### Step 5: Track Progress
+### Step 6: Track Progress
 
 Update `devflow/tasks.md` status fields as tasks complete:
 - `pending` → `in_progress` → `done`

@@ -45,7 +45,8 @@ Based on the confirmed flowchart:
 
 - **In Scope:** What this implementation covers
 - **Out of Scope (Non-Goals):** What is explicitly excluded — equally important
-- **Technical Standards:** Coding conventions, architecture constraints, technology choices
+- **Technical Standards:** Coding conventions, architecture constraints, technology choices. Include an explicit statement about quality expectations — the default is production-grade, not demo-level (see below).
+- **Production-Grade Standards:** Define what "done" means for this feature beyond basic functionality. Cover: error handling strategy, edge case coverage, UI state completeness (loading/empty/error/success), logging approach, security requirements. AI defaults to demo-level code unless these are specified — make them explicit.
 - **Design Decisions:** Key choices with rationale and alternatives considered
 - **Risks & Mitigations:** What could go wrong and how to handle it
 

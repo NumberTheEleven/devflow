@@ -27,6 +27,13 @@ Break down the requirement into discrete, verifiable sub-requirements:
 - Mark dependencies: which other requirements must be completed first
 - Each must have measurable acceptance criteria (checkbox format)
 
+**Production-quality requirements:** By default, include requirements that prevent demo-level gaps. Unless the user explicitly says otherwise, add:
+- Error handling for all external dependencies (API calls, file I/O, user input)
+- Complete UI state coverage: loading, empty, error, success, and edge cases
+- Input validation and sanitization
+- Basic logging for key operations
+- These can be P1/P2 if the core functionality is P0, but they MUST appear in the checklist rather than being silently omitted
+
 ### Step 3: Present for Confirmation
 
 Show the complete numbered list to the user:
