@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>DevFlow Design</title></head>
+<body>
+<h2>DevFlow — AI 开发规范流程插件 完整设计</h2>
+<p class="subtitle">6 个命令 · 4 大阶段 · 4 份落盘文件 · 灵活入口 · 智能回退</p>
+
+<div class="section">
+  <h3>架构总览</h3>
+  <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center; font-size: 12px; margin: 16px 0;">
+    <div style="background: #E3F2FD; border-radius: 8px; padding: 10px; text-align: center; min-width: 90px;">
+      <strong>/discover</strong><br><span style="color:#666">Project<br>Discovery</span>
+    </div>
+    <span style="color:#999;">→</span>
+    <div style="background: #E8F0FE; border-radius: 8px; padding: 10px; text-align: center; min-width: 90px;">
+      <strong>/clarify</strong><br><span style="color:#666">Requirements<br>Clarification</span>
+    </div>
+    <span style="color:#999;">→</span>
+    <div style="background: #BBDEFB; border-radius: 8px; padding: 10px; text-align: center; min-width: 90px;">
+      <strong>/breakdown</strong><br><span style="color:#666">Requirements<br>Breakdown</span>
+    </div>
+    <span style="color:#999;">→</span>
+    <div style="background: #C8E6C9; border-radius: 8px; padding: 10px; text-align: center; min-width: 90px;">
+      <strong>/blueprint</strong><br><span style="color:#666">Solution<br>Blueprint</span>
+    </div>
+    <span style="color:#999;">→</span>
+    <div style="background: #FFE0B2; border-radius: 8px; padding: 10px; text-align: center; min-width: 90px;">
+      <strong>/implement</strong><br><span style="color:#666">Implementation</span>
+    </div>
+    <span style="color:#999;">→</span>
+    <div style="background: #FFCDD2; border-radius: 8px; padding: 10px; text-align: center; min-width: 90px;">
+      <strong>/verify</strong><br><span style="color:#666">Verification</span>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Phase 1: Requirements 需求管理</h3>
+
+  <div style="display: flex; gap: 12px; margin-bottom: 12px;">
+    <div style="flex:1; background:#fff; border:1px solid #ddd; border-radius:8px; padding:12px;">
+      <div style="font-family: monospace; font-size: 16px; font-weight: bold; color: #0D47A1;">/discover</div>
+      <div style="font-size: 11px; color: #888;">Project Discovery</div>
+      <div style="font-size: 13px; margin-top: 8px;">
+        <strong>触发场景:</strong> 用户无明确需求<br>
+        <strong>流程:</strong><br>
+        ① 扫描项目结构与代码<br>
+        ② 识别可优化点<br>
+        ③ 生成优先级建议列表<br>
+        <strong>输出:</strong> 优化机会列表 → 触发 /clarify
+      </div>
+    </div>
+    <div style="flex:1; background:#fff; border:1px solid #ddd; border-radius:8px; padding:12px;">
+      <div style="font-family: monospace; font-size: 16px; font-weight: bold; color: #1565C0;">/clarify</div>
+      <div style="font-size: 11px; color: #888;">Requirements Clarification</div>
+      <div style="font-size: 13px; margin-top: 8px;">
+        <strong>触发场景:</strong> 用户有模糊想法<br>
+        <strong>流程:</strong><br>
+        ① 逐轮对话展开需求<br>
+        ② 2-3 方案对比 + 推荐<br>
+        ③ 收敛为清晰描述<br>
+        <strong>输出:</strong> 清晰需求 → 触发 /breakdown
+      </div>
+    </div>
+    <div style="flex:1; background:#fff; border:1px solid #ddd; border-radius:8px; padding:12px;">
+      <div style="font-family: monospace; font-size: 16px; font-weight: bold; color: #1976D2;">/breakdown</div>
+      <div style="font-size: 11px; color: #888;">Requirements Breakdown</div>
+      <div style="font-size: 13px; margin-top: 8px;">
+        <strong>触发场景:</strong> 需求清晰（可直接进入）<br>
+        <strong>流程:</strong><br>
+        ① 拆解为编号子需求 R-001...<br>
+        ② 标注优先级 P0/P1/P2<br>
+        ③ 标注依赖关系<br>
+        <strong>输出:</strong> 📄 需求清单（落盘）
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Phase 2: Design 方案设计</h3>
+  <div style="background:#fff; border:1px solid #ddd; border-radius:8px; padding:14px; max-width:500px;">
+    <div style="font-family: monospace; font-size: 16px; font-weight: bold; color: #2E7D32;">/blueprint</div>
+    <div style="font-size: 11px; color: #888;">Solution Blueprint</div>
+    <div style="font-size: 13px; margin-top: 8px; line-height: 2;">
+      <strong>触发场景:</strong> 需求清单就绪（可直接进入）<br>
+      <strong>流程 (按依赖关系排序):</strong><br>
+      ① <strong>业务流程图</strong> — 非技术人员可读，先确认用户世界的流程<br>
+      ② <strong>规格边界 & 规范标准</strong> — 基于流程图定义实现范围<br>
+      ③ <strong>测试用例清单</strong> — TC-001... 带编号追踪<br>
+      <strong>输出:</strong> 📄 设计规格文档 + 📄 测试用例清单（落盘）
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Phase 3: Implementation 编码实现</h3>
+  <div style="background:#fff; border:1px solid #ddd; border-radius:8px; padding:14px; max-width:500px;">
+    <div style="font-family: monospace; font-size: 16px; font-weight: bold; color: #E65100;">/implement</div>
+    <div style="font-size: 11px; color: #888;">Implementation</div>
+    <div style="font-size: 13px; margin-top: 8px; line-height: 2;">
+      <strong>触发场景:</strong> 蓝图就绪（可直接进入）<br>
+      <strong>流程:</strong><br>
+      ① <strong>任务拆解</strong> — T-001, T-002... 标注影响模块/文件（📄 落盘）<br>
+      ② <strong>技术架构文档</strong> — UML/泳道图/状态机图<br>
+      ③ <strong>编码执行</strong> — 无依赖并行 Sub-agent + 有依赖顺序 TDD
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Phase 4: Verification 测试验证</h3>
+  <div style="background:#fff; border:1px solid #ddd; border-radius:8px; padding:14px; max-width:500px;">
+    <div style="font-family: monospace; font-size: 16px; font-weight: bold; color: #B71C1C;">/verify</div>
+    <div style="font-size: 11px; color: #888;">Verification</div>
+    <div style="font-size: 13px; margin-top: 8px; line-height: 2;">
+      <strong>触发场景:</strong> 编码完成（可直接进入）<br>
+      <strong>流程:</strong><br>
+      ① 逐项验证 TC-xxx 测试用例<br>
+      ② 逐项核对 R-xxx 需求清单<br>
+      ③ 失败 → 智能定位归属阶段 → 自动回退<br>
+      ④ 全绿 → 验证报告 + 闭环
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>关键机制</h3>
+  <div class="split">
+    <div class="mockup">
+      <div class="mockup-header">灵活入口</div>
+      <div class="mockup-body" style="padding:12px; font-size:12px;">
+        任意阶段可直接进入。<br>
+        例如：用户已有 PRD → 直接 /breakdown<br>
+        用户已有设计文档 → 直接 /implement
+      </div>
+    </div>
+    <div class="mockup">
+      <div class="mockup-header">智能回退</div>
+      <div class="mockup-body" style="padding:12px; font-size:12px;">
+        用户说"需求不对" → AI 自动回退到 /clarify<br>
+        用户说"设计有问题" → AI 自动回退到 /blueprint<br>
+        增量重做：只改受影响的链条
+      </div>
+    </div>
+    <div class="mockup">
+      <div class="mockup-header">阶段收尾询问</div>
+      <div class="mockup-body" style="padding:12px; font-size:12px;">
+        每阶段完成时询问：<br>
+        1. 进入下一阶段<br>
+        2. 有疑问需回退<br>
+        3. 暂不继续
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>落盘文件结构 (项目内)</h3>
+  <div style="background:#1e1e1e; color:#d4d4d4; border-radius:8px; padding:14px; font-family:monospace; font-size:12px; line-height:1.8;">
+    devflow/<br>
+    ├── requirements.md    &nbsp;&nbsp;<span style="color:#6a9955;"># R-001 ~ R-xxx 需求清单 + 状态</span><br>
+    ├── design.md          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#6a9955;"># 设计规格 + 业务流程图</span><br>
+    ├── tasks.md           &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#6a9955;"># T-001 ~ T-xxx 任务拆解 + 状态</span><br>
+    └── test-cases.md      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#6a9955;"># TC-001 ~ TC-xxx 测试用例 + 状态</span>
+  </div>
+</div>
+
+<div class="section">
+  <h3>技术方案</h3>
+  <table style="width:100%; border-collapse:collapse; font-size:13px;">
+    <tr><td style="padding:6px;font-weight:bold;">插件类型</td><td>Claude Code Plugin（Skills + Commands）</td></tr>
+    <tr><td style="padding:6px;font-weight:bold;">文件格式</td><td>每个命令 = 一个 Skill Markdown 文件</td></tr>
+    <tr><td style="padding:6px;font-weight:bold;">发布目标</td><td>Claude Code Marketplace + Eleven Marketplace</td></tr>
+    <tr><td style="padding:6px;font-weight:bold;">命令调用</td><td>/devflow:discover, /devflow:clarify, ...</td></tr>
+    <tr><td style="padding:6px;font-weight:bold;">状态持久化</td><td>混合：核心清单落盘 devflow/*.md + 执行细节靠会话上下文</td></tr>
+  </table>
+</div>
+
+</body>
+</html>

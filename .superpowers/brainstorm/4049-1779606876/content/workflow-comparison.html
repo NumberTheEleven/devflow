@@ -1,0 +1,127 @@
+<h2>Superpowers vs OpenSPEC — 工作流对比</h2>
+<p class="subtitle">两种主流 AI 开发规范工作流 + 你的方案框架</p>
+
+<div class="split">
+  <div class="mockup">
+    <div class="mockup-header">Superpowers 工作流</div>
+    <div class="mockup-body">
+      <div style="padding: 16px; font-size: 13px; line-height: 1.7;">
+        <div style="background: #e8f0fe; border-radius: 8px; padding: 10px; margin-bottom: 8px;">
+          <strong>Phase 1: Brainstorming</strong><br>
+          <span style="color: #666; font-size: 12px;">探索 → 澄清 → 方案对比 → 设计确认 → Spec文档</span>
+        </div>
+        <div style="text-align: center; color: #999; margin: 2px 0;">↓</div>
+        <div style="background: #e6f4ea; border-radius: 8px; padding: 10px; margin-bottom: 8px;">
+          <strong>Phase 2: Writing Plans</strong><br>
+          <span style="color: #666; font-size: 12px;">Spec→Plan 拆解 → Bite-sized Tasks → 精确路径+代码</span>
+        </div>
+        <div style="text-align: center; color: #999; margin: 2px 0;">↓</div>
+        <div style="background: #fef7e0; border-radius: 8px; padding: 10px; margin-bottom: 8px;">
+          <strong>Phase 3: Subagent-Driven Dev</strong><br>
+          <span style="color: #666; font-size: 12px;">逐任务 → 新Subagent → TDD → Spec审查 → 代码审查</span>
+        </div>
+        <div style="text-align: center; color: #999; margin: 2px 0;">↓</div>
+        <div style="background: #fce8e6; border-radius: 8px; padding: 10px;">
+          <strong>Phase 4: Verification & Finish</strong><br>
+          <span style="color: #666; font-size: 12px;">验证证据 → 测试 → Merge/PR/Keep/Discard</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mockup">
+    <div class="mockup-header">OpenSPEC 工作流</div>
+    <div class="mockup-body">
+      <div style="padding: 16px; font-size: 13px; line-height: 1.7;">
+        <div style="background: #e8f0fe; border-radius: 8px; padding: 10px; margin-bottom: 8px;">
+          <strong>/opsx:propose</strong><br>
+          <span style="color: #666; font-size: 12px;">一键创建 proposal + design + tasks + specs</span>
+        </div>
+        <div style="text-align: center; color: #999; margin: 2px 0;">↓</div>
+        <div style="background: #e6f4ea; border-radius: 8px; padding: 10px; margin-bottom: 8px;">
+          <strong>/opsx:apply</strong><br>
+          <span style="color: #666; font-size: 12px;">AI 按 tasks.md 顺序实施，标记完成</span>
+        </div>
+        <div style="text-align: center; color: #999; margin: 2px 0;">↓</div>
+        <div style="background: #fce8e6; border-radius: 8px; padding: 10px;">
+          <strong>/opsx:archive</strong><br>
+          <span style="color: #666; font-size: 12px;">归档到 archive/ → 合并增量规范到 specs/</span>
+        </div>
+        <div style="margin-top: 12px; padding: 8px; background: #f5f5f5; border-radius: 6px; font-size: 11px; color: #666;">
+          <strong>扩展命令:</strong> explore, new, continue, ff, verify, sync, onboard
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>你的方案框架 (初版)</h3>
+  <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+    <div style="flex: 1; min-width: 120px; background: #e3f2fd; border-radius: 8px; padding: 12px; text-align: center;">
+      <strong>Phase 1</strong><br>
+      <span style="font-size: 13px;">需求管理</span><br>
+      <span style="font-size: 11px; color: #555;">3种入口 · 清单追踪</span>
+    </div>
+    <div style="color: #999; display: flex; align-items: center; font-size: 20px;">→</div>
+    <div style="flex: 1; min-width: 120px; background: #e8f5e9; border-radius: 8px; padding: 12px; text-align: center;">
+      <strong>Phase 2</strong><br>
+      <span style="font-size: 13px;">方案设计</span><br>
+      <span style="font-size: 11px; color: #555;">Spec边界 · 业务流程图</span>
+    </div>
+    <div style="color: #999; display: flex; align-items: center; font-size: 20px;">→</div>
+    <div style="flex: 1; min-width: 120px; background: #fff3e0; border-radius: 8px; padding: 12px; text-align: center;">
+      <strong>Phase 3</strong><br>
+      <span style="font-size: 13px;">编码实现</span><br>
+      <span style="font-size: 11px; color: #555;">技术文档 · UML图 · Subagent</span>
+    </div>
+    <div style="color: #999; display: flex; align-items: center; font-size: 20px;">→</div>
+    <div style="flex: 1; min-width: 120px; background: #fce4ec; border-radius: 8px; padding: 12px; text-align: center;">
+      <strong>Phase 4</strong><br>
+      <span style="font-size: 13px;">测试验证</span><br>
+      <span style="font-size: 11px; color: #555;">编号追踪 · Checklist</span>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>你的方案 vs 现有方案的差异化优势</h3>
+  <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+    <tr style="background: #f5f5f5;">
+      <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">能力</th>
+      <th style="padding: 8px; text-align: center; border-bottom: 1px solid #ddd;">Superpowers</th>
+      <th style="padding: 8px; text-align: center; border-bottom: 1px solid #ddd;">OpenSPEC</th>
+      <th style="padding: 8px; text-align: center; border-bottom: 1px solid #ddd; background: #e8f5e9;">你的方案</th>
+    </tr>
+    <tr>
+      <td style="padding: 8px; border-bottom: 1px solid #eee;">无想法时扫描项目</td>
+      <td style="padding: 8px; text-align: center; border-bottom: 1px solid #eee;">❌</td>
+      <td style="padding: 8px; text-align: center; border-bottom: 1px solid #eee;">❌</td>
+      <td style="padding: 8px; text-align: center; border-bottom: 1px solid #eee; background: #e8f5e9;">✅</td>
+    </tr>
+    <tr>
+      <td style="padding: 8px; border-bottom: 1px solid #eee;">需求编号追踪</td>
+      <td style="padding: 8px; text-align: center; border-bottom: 1px solid #eee;">半自动</td>
+      <td style="padding: 8px; text-align: center; border-bottom: 1px solid #eee;">半自动</td>
+      <td style="padding: 8px; text-align: center; border-bottom: 1px solid #eee; background: #e8f5e9;">✅ 清单化</td>
+    </tr>
+    <tr>
+      <td style="padding: 8px; border-bottom: 1px solid #eee;">非技术人员可读流程图</td>
+      <td style="padding: 8px; text-align: center; border-bottom: 1px solid #eee;">可选</td>
+      <td style="padding: 8px; text-align: center; border-bottom: 1px solid #eee;">❌</td>
+      <td style="padding: 8px; text-align: center; border-bottom: 1px solid #eee; background: #e8f5e9;">✅ 强制</td>
+    </tr>
+    <tr>
+      <td style="padding: 8px; border-bottom: 1px solid #eee;">测试用例编号追踪</td>
+      <td style="padding: 8px; text-align: center; border-bottom: 1px solid #eee;">❌</td>
+      <td style="padding: 8px; text-align: center; border-bottom: 1px solid #eee;">❌</td>
+      <td style="padding: 8px; text-align: center; border-bottom: 1px solid #eee; background: #e8f5e9;">✅</td>
+    </tr>
+    <tr>
+      <td style="padding: 8px; border-bottom: 1px solid #eee;">多入口需求处理</td>
+      <td style="padding: 8px; text-align: center; border-bottom: 1px solid #eee;">单一</td>
+      <td style="padding: 8px; text-align: center; border-bottom: 1px solid #eee;">单一</td>
+      <td style="padding: 8px; text-align: center; border-bottom: 1px solid #eee; background: #e8f5e9;">3种场景</td>
+    </tr>
+  </table>
+</div>

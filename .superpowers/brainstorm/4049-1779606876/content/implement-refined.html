@@ -1,0 +1,68 @@
+<h2>/implement 细化 — 加入任务拆解</h2>
+<p class="subtitle">编码前必须先拆解任务，编号追踪，注明影响范围</p>
+
+<div style="border: 2px solid #E65100; border-radius: 12px; overflow: hidden; max-width: 650px;">
+  <div style="background: #E65100; color: white; padding: 10px 16px; font-weight: bold; font-size: 14px;">
+    /implement &mdash; Implementation 编码实现
+  </div>
+  <div style="padding: 16px; background: #FFF3E0; font-size: 13px; line-height: 2;">
+    <strong>输入:</strong> 蓝图（Spec + 流程图 + 测试清单）<br><br>
+
+    <div style="background: #FFE0B2; border-radius: 6px; padding: 10px; margin-bottom: 8px;">
+      <strong>① 任务拆解</strong> <span style="background: #E65100; color: white; padding: 1px 6px; border-radius: 3px; font-size: 11px;">落盘</span><br>
+      基于蓝图将需求拆解为编号开发任务<br>
+      每个任务标注：大致影响的模块/文件、依赖关系、预估复杂度
+    </div>
+
+    <div style="background: #FFE0B2; border-radius: 6px; padding: 10px; margin-bottom: 8px;">
+      <strong>② 技术架构文档</strong><br>
+      选择合适的 UML/泳道图/状态机图描述技术方案<br>
+      数据流设计、接口定义、关键决策说明
+    </div>
+
+    <div style="background: #FFE0B2; border-radius: 6px; padding: 10px; margin-bottom: 8px;">
+      <strong>③ 编码执行</strong><br>
+      无依赖任务 → 并行 Sub-agent + TDD<br>
+      有依赖任务 → 顺序 Sub-agent + TDD<br>
+      每任务：代码审查 + 提交
+    </div>
+
+    <strong>输出:</strong> 任务拆解清单 + 代码提交记录 → 触发 /verify
+  </div>
+</div>
+
+<div class="section" style="margin-top: 20px;">
+  <h3>落盘文件总览</h3>
+  <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+    <tr style="background: #f5f5f5;">
+      <th style="padding: 8px; text-align: left;">产出物</th>
+      <th style="padding: 8px; text-align: center;">来源命令</th>
+      <th style="padding: 8px; text-align: center;">编号追踪</th>
+      <th style="padding: 8px; text-align: center;">跨会话恢复</th>
+    </tr>
+    <tr>
+      <td style="padding: 8px; border-bottom: 1px solid #eee;">需求清单</td>
+      <td style="padding: 8px; text-align: center; border-bottom: 1px solid #eee;">/breakdown</td>
+      <td style="padding: 8px; text-align: center; border-bottom: 1px solid #eee;">✅ R-001, R-002...</td>
+      <td style="padding: 8px; text-align: center; border-bottom: 1px solid #eee;">✅ 落盘</td>
+    </tr>
+    <tr>
+      <td style="padding: 8px; border-bottom: 1px solid #eee;">设计规格 + 业务流程图</td>
+      <td style="padding: 8px; text-align: center; border-bottom: 1px solid #eee;">/blueprint</td>
+      <td style="padding: 8px; text-align: center; border-bottom: 1px solid #eee;">—</td>
+      <td style="padding: 8px; text-align: center; border-bottom: 1px solid #eee;">✅ 落盘</td>
+    </tr>
+    <tr>
+      <td style="padding: 8px; border-bottom: 1px solid #eee;">任务拆解清单</td>
+      <td style="padding: 8px; text-align: center; border-bottom: 1px solid #eee;">/implement ①</td>
+      <td style="padding: 8px; text-align: center; border-bottom: 1px solid #eee;">✅ T-001, T-002...</td>
+      <td style="padding: 8px; text-align: center; border-bottom: 1px solid #eee;">✅ 落盘</td>
+    </tr>
+    <tr>
+      <td style="padding: 8px; border-bottom: 1px solid #eee;">测试用例清单</td>
+      <td style="padding: 8px; text-align: center; border-bottom: 1px solid #eee;">/blueprint ③</td>
+      <td style="padding: 8px; text-align: center; border-bottom: 1px solid #eee;">✅ TC-001, TC-002...</td>
+      <td style="padding: 8px; text-align: center; border-bottom: 1px solid #eee;">✅ 落盘</td>
+    </tr>
+  </table>
+</div>

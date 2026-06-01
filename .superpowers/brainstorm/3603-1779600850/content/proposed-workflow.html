@@ -1,0 +1,112 @@
+<h2>AI 开发规范流程 — 命令 & 阶段设计</h2>
+<p class="subtitle">6 个命令 · 4 个阶段 · 灵活入口 + 智能回退</p>
+
+<div style="display: flex; flex-direction: column; gap: 16px; margin-top: 20px;">
+
+  <!-- Phase 1 -->
+  <div style="border: 2px solid #2196F3; border-radius: 12px; overflow: hidden;">
+    <div style="background: #2196F3; color: white; padding: 10px 16px; font-weight: bold; font-size: 14px;">
+      Phase 1: Requirements 需求管理
+    </div>
+    <div style="padding: 16px; background: #E3F2FD;">
+
+      <div style="display: flex; gap: 12px; align-items: stretch;">
+        <div style="flex: 1; background: white; border-radius: 8px; padding: 14px; text-align: center; border-left: 4px solid #0D47A1;">
+          <div style="font-size: 20px; font-weight: bold; color: #0D47A1; font-family: monospace;">/discover</div>
+          <div style="font-size: 12px; color: #666; margin-top: 4px;">Entry: 用户无想法</div>
+          <div style="font-size: 13px; margin-top: 8px; line-height: 1.5;">扫描项目代码库<br>识别优化机会<br>生成建议列表</div>
+          <div style="margin-top: 10px; background: #BBDEFB; border-radius: 4px; padding: 4px 8px; font-size: 11px;">
+            输出 → 优化点列表 → 可触发 /clarify
+          </div>
+        </div>
+
+        <div style="display: flex; align-items: center; color: #999; font-size: 24px; font-weight: bold;">→</div>
+
+        <div style="flex: 1; background: white; border-radius: 8px; padding: 14px; text-align: center; border-left: 4px solid #1565C0;">
+          <div style="font-size: 20px; font-weight: bold; color: #1565C0; font-family: monospace;">/clarify</div>
+          <div style="font-size: 12px; color: #666; margin-top: 4px;">Entry: 用户有模糊想法</div>
+          <div style="font-size: 13px; margin-top: 8px; line-height: 1.5;">逐轮对话展开需求<br>明确目的/约束/成功标准<br>探索 2-3 方案对比</div>
+          <div style="margin-top: 10px; background: #BBDEFB; border-radius: 4px; padding: 4px 8px; font-size: 11px;">
+            输出 → 清晰需求描述 → 可触发 /breakdown
+          </div>
+        </div>
+
+        <div style="display: flex; align-items: center; color: #999; font-size: 24px; font-weight: bold;">→</div>
+
+        <div style="flex: 1; background: white; border-radius: 8px; padding: 14px; text-align: center; border-left: 4px solid #1976D2;">
+          <div style="font-size: 20px; font-weight: bold; color: #1976D2; font-family: monospace;">/breakdown</div>
+          <div style="font-size: 12px; color: #666; margin-top: 4px;">Entry: 用户有清晰需求</div>
+          <div style="font-size: 13px; margin-top: 8px; line-height: 1.5;">需求拆解为编号清单<br>每个需求可追踪状态<br>标注优先级和依赖</div>
+          <div style="margin-top: 10px; background: #BBDEFB; border-radius: 4px; padding: 4px 8px; font-size: 11px;">
+            输出 → 编号需求清单 → 可触发 /blueprint
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Phase 2 -->
+  <div style="border: 2px solid #4CAF50; border-radius: 12px; overflow: hidden;">
+    <div style="background: #4CAF50; color: white; padding: 10px 16px; font-weight: bold; font-size: 14px;">
+      Phase 2: Design 方案设计
+    </div>
+    <div style="padding: 16px; background: #E8F5E9;">
+      <div style="background: white; border-radius: 8px; padding: 16px; border-left: 4px solid #2E7D32; max-width: 500px;">
+        <div style="font-size: 20px; font-weight: bold; color: #2E7D32; font-family: monospace;">/blueprint</div>
+        <div style="font-size: 12px; color: #666; margin-top: 4px;">Entry: 需求清单就绪</div>
+        <div style="font-size: 13px; margin-top: 8px; line-height: 1.5;">
+          <strong>Step 1:</strong> 定义实现规格、边界、规范标准<br>
+          <strong>Step 2:</strong> 生成业务流程图（非技术人员可读）<br>
+          <strong>Step 3:</strong> 生成测试用例清单（带编号追踪）
+        </div>
+        <div style="margin-top: 10px; background: #C8E6C9; border-radius: 4px; padding: 4px 8px; font-size: 11px;">
+          输出 → Spec + 流程图 + 测试用例清单 → 可触发 /implement
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Phase 3 -->
+  <div style="border: 2px solid #FF9800; border-radius: 12px; overflow: hidden;">
+    <div style="background: #FF9800; color: white; padding: 10px 16px; font-weight: bold; font-size: 14px;">
+      Phase 3: Implementation 编码实现
+    </div>
+    <div style="padding: 16px; background: #FFF3E0;">
+      <div style="background: white; border-radius: 8px; padding: 16px; border-left: 4px solid #E65100; max-width: 500px;">
+        <div style="font-size: 20px; font-weight: bold; color: #E65100; font-family: monospace;">/implement</div>
+        <div style="font-size: 12px; color: #666; margin-top: 4px;">Entry: 蓝图就绪</div>
+        <div style="font-size: 13px; margin-top: 8px; line-height: 1.5;">
+          <strong>Step 1:</strong> 编写技术架构文档（UML/泳道图/状态机）<br>
+          <strong>Step 2:</strong> 识别无依赖任务 → 并行 Sub-agent 执行<br>
+          <strong>Step 3:</strong> 有依赖任务 → TDD 顺序执行<br>
+          <strong>Step 4:</strong> 代码审查 + 逐任务提交
+        </div>
+        <div style="margin-top: 10px; background: #FFE0B2; border-radius: 4px; padding: 4px 8px; font-size: 11px;">
+          输出 → 完成编码 + 提交记录 → 可触发 /verify
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Phase 4 -->
+  <div style="border: 2px solid #F44336; border-radius: 12px; overflow: hidden;">
+    <div style="background: #F44336; color: white; padding: 10px 16px; font-weight: bold; font-size: 14px;">
+      Phase 4: Verification 测试验证
+    </div>
+    <div style="padding: 16px; background: #FFEBEE;">
+      <div style="background: white; border-radius: 8px; padding: 16px; border-left: 4px solid #B71C1C; max-width: 500px;">
+        <div style="font-size: 20px; font-weight: bold; color: #B71C1C; font-family: monospace;">/verify</div>
+        <div style="font-size: 12px; color: #666; margin-top: 4px;">Entry: 编码完成</div>
+        <div style="font-size: 13px; margin-top: 8px; line-height: 1.5;">
+          <strong>Step 1:</strong> 逐项验证测试用例清单<br>
+          <strong>Step 2:</strong> 逐项验证需求 Checklist<br>
+          <strong>Step 3:</strong> 失败项 → 智能定位所属阶段 → 自动回退<br>
+          <strong>Step 4:</strong> 全绿 → 完成闭环
+        </div>
+        <div style="margin-top: 10px; background: #FFCDD2; border-radius: 4px; padding: 4px 8px; font-size: 11px;">
+          输出 → 验证报告 / 回退到对应阶段重做
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

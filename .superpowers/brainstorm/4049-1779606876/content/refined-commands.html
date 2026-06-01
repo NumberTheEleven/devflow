@@ -1,0 +1,106 @@
+<h2>最终命令设计 — 内部流程明确</h2>
+<p class="subtitle">6 个命令 · 每个命令的内部步骤基于产出物依赖关系排序</p>
+
+<div style="display: flex; flex-direction: column; gap: 14px; margin-top: 20px;">
+
+  <!-- discover -->
+  <div style="border: 2px solid #0D47A1; border-radius: 10px; overflow: hidden;">
+    <div style="background: #0D47A1; color: white; padding: 8px 14px; font-weight: bold; font-size: 13px;">
+      /discover &mdash; Project Discovery 项目探索
+    </div>
+    <div style="padding: 12px 16px; background: #E3F2FD; font-size: 13px;">
+      <strong>输入:</strong> 无（用户没有明确需求）<br>
+      <strong>内部流程:</strong><br>
+      <span style="color: #0D47A1;">①</span> 扫描项目结构与代码质量 →
+      <span style="color: #0D47A1;">②</span> 识别可优化点（性能/架构/可维护性/功能缺口） →
+      <span style="color: #0D47A1;">③</span> 生成优先级建议列表<br>
+      <strong>输出:</strong> 优化机会列表 → 用户选择一项 → 触发 /clarify
+    </div>
+  </div>
+
+  <!-- clarify -->
+  <div style="border: 2px solid #1565C0; border-radius: 10px; overflow: hidden;">
+    <div style="background: #1565C0; color: white; padding: 8px 14px; font-weight: bold; font-size: 13px;">
+      /clarify &mdash; Requirements Clarification 需求澄清
+    </div>
+    <div style="padding: 12px 16px; background: #E8F0FE; font-size: 13px;">
+      <strong>输入:</strong> 模糊需求 / 从 /discover 选中的优化点<br>
+      <strong>内部流程:</strong><br>
+      <span style="color: #1565C0;">①</span> 逐轮对话展开：目的/约束/成功标准 →
+      <span style="color: #1565C0;">②</span> 提出 2-3 方案对比（trade-off + 推荐） →
+      <span style="color: #1565C0;">③</span> 收敛为清晰需求描述<br>
+      <strong>输出:</strong> 清晰的需求描述（What & Why） → 触发 /breakdown
+    </div>
+  </div>
+
+  <!-- breakdown -->
+  <div style="border: 2px solid #1976D2; border-radius: 10px; overflow: hidden;">
+    <div style="background: #1976D2; color: white; padding: 8px 14px; font-weight: bold; font-size: 13px;">
+      /breakdown &mdash; Requirements Breakdown 需求拆解
+    </div>
+    <div style="padding: 12px 16px; background: #E3F2FD; font-size: 13px;">
+      <strong>输入:</strong> 清晰需求描述（或直接进入）<br>
+      <strong>内部流程:</strong><br>
+      <span style="color: #1976D2;">①</span> 拆解为带编号的子需求清单 →
+      <span style="color: #1976D2;">②</span> 标注每个子需求的优先级( P0/P1/P2 )和依赖关系 →
+      <span style="color: #1976D2;">③</span> 用户确认清单<br>
+      <strong>输出:</strong> 编号需求清单（每个需求可追踪状态） → 触发 /blueprint
+    </div>
+  </div>
+
+  <!-- blueprint -->
+  <div style="border: 2px solid #2E7D32; border-radius: 10px; overflow: hidden;">
+    <div style="background: #2E7D32; color: white; padding: 8px 14px; font-weight: bold; font-size: 13px;">
+      /blueprint &mdash; Solution Blueprint 方案蓝图
+    </div>
+    <div style="padding: 12px 16px; background: #E8F5E9; font-size: 13px;">
+      <strong>输入:</strong> 编号需求清单<br>
+      <strong>内部流程 (基于依赖关系排序):</strong><br>
+      <span style="color: #2E7D32;">①</span> <strong>业务流程图</strong> — 先确认用户世界里的业务流程（需求→方案的接口层）<br>
+      <span style="color: #2E7D32;">②</span> <strong>规格边界 & 规范标准</strong> — 基于流程图定义实现范围和技术规范<br>
+      <span style="color: #2E7D32;">③</span> <strong>测试用例清单</strong> — 基于明确的范围，列出带编号追踪的测试用例<br>
+      <strong>输出:</strong> 业务流程图 + Spec/Scope + 测试用例清单 → 触发 /implement
+    </div>
+  </div>
+
+  <!-- implement -->
+  <div style="border: 2px solid #E65100; border-radius: 10px; overflow: hidden;">
+    <div style="background: #E65100; color: white; padding: 8px 14px; font-weight: bold; font-size: 13px;">
+      /implement &mdash; Implementation 编码实现
+    </div>
+    <div style="padding: 12px 16px; background: #FFF3E0; font-size: 13px;">
+      <strong>输入:</strong> 蓝图（Spec + 流程图 + 测试清单）<br>
+      <strong>内部流程:</strong><br>
+      <span style="color: #E65100;">①</span> <strong>技术架构文档</strong> — 选择合适的 UML/泳道图/状态机图描述技术方案<br>
+      <span style="color: #E65100;">②</span> <strong>任务依赖分析</strong> — 识别无依赖任务（可并行 Sub-agent）vs 有依赖任务（顺序 TDD）<br>
+      <span style="color: #E65100;">③</span> <strong>并行 Sub-agent 编码</strong> — TDD + 代码审查 + 逐任务提交<br>
+      <strong>输出:</strong> 完成编码 + 提交记录 → 触发 /verify
+    </div>
+  </div>
+
+  <!-- verify -->
+  <div style="border: 2px solid #B71C1C; border-radius: 10px; overflow: hidden;">
+    <div style="background: #B71C1C; color: white; padding: 8px 14px; font-weight: bold; font-size: 13px;">
+      /verify &mdash; Verification 测试验证
+    </div>
+    <div style="padding: 12px 16px; background: #FFEBEE; font-size: 13px;">
+      <strong>输入:</strong> 完成编码<br>
+      <strong>内部流程:</strong><br>
+      <span style="color: #B71C1C;">①</span> 逐项跑测试用例清单（/blueprint 阶段定义的）<br>
+      <span style="color: #B71C1C;">②</span> 逐项核对需求 Checklist（/breakdown 阶段定义的）<br>
+      <span style="color: #B71C1C;">③</span> 失败项 → 智能定位所属阶段 → 自动回退<br>
+      <span style="color: #B71C1C;">④</span> 全绿 → 完成闭环，生成验证报告<br>
+      <strong>输出:</strong> 验证报告 / 回退到对应阶段重做（增量）
+    </div>
+  </div>
+
+</div>
+
+<div class="section" style="margin-top: 20px;">
+  <h3>设计依据 — 行业标准参考</h3>
+  <div style="font-size: 12px; color: #666; line-height: 1.8;">
+    <p><strong>Google Design Doc 标准:</strong> PRD (What/Why) → Design Doc (How) → Work Plan</p>
+    <p><strong>字节跳动 5 步标准化:</strong> 流程标准化 → 质量门禁 → 需求研发双流联动 → 全流程洞察 → 一站式体验</p>
+    <p><strong>本插件核心原则:</strong> 每个命令内部的产出物顺序 = 依赖关系决定 —— 被依赖的先产出，无依赖的可并行</p>
+  </div>
+</div>

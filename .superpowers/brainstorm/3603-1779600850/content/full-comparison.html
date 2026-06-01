@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>DevFlow vs Industry</title></head>
+<body>
+<h2>DevFlow 与行业方案全面对比</h2>
+<p class="subtitle">覆盖大厂流程规范 + AI 开发工具 + 开源框架 · 共 15+ 方案</p>
+
+<!-- ==================== SECTION 1 ==================== -->
+<div style="margin-top: 24px;">
+  <h3 style="color: #333; border-bottom: 2px solid #2196F3; padding-bottom: 4px;">
+    一、五大科技公司开发流程对比
+  </h3>
+  <div style="overflow-x: auto;">
+    <table style="width:100%; border-collapse:collapse; font-size:12px; margin-top:12px;">
+      <thead>
+        <tr style="background:#f5f5f5;">
+          <th style="padding:8px; text-align:left; border-bottom:2px solid #ddd; width:8%;">公司</th>
+          <th style="padding:8px; text-align:left; border-bottom:2px solid #ddd; width:25%;">阶段流水线</th>
+          <th style="padding:8px; text-align:left; border-bottom:2px solid #ddd; width:15%;">核心产物</th>
+          <th style="padding:8px; text-align:left; border-bottom:2px solid #ddd; width:15%;">AI 角色</th>
+          <th style="padding:8px; text-align:left; border-bottom:2px solid #ddd; width:12%;">可借鉴点</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td style="padding:8px; border-bottom:1px solid #eee; vertical-align:top;"><strong>Google</strong></td>
+          <td style="padding:8px; border-bottom:1px solid #eee; font-size:11px;">
+            PRD → Design Doc (草稿) → 快速迭代 → 评审 (3种形式) → 审批 → 实施 → 维护
+          </td>
+          <td style="padding:8px; border-bottom:1px solid #eee; font-size:11px;">
+            Design Doc (10-20页)<br>
+            包含: Goals·Non-Goals·Alternatives·Cross-Cutting Concerns
+          </td>
+          <td style="padding:8px; border-bottom:1px solid #eee; font-size:11px;">
+            ~30% 代码 AI 生成<br>
+            Goose (内部工具)<br>
+            设计文档仍由人写
+          </td>
+          <td style="padding:8px; border-bottom:1px solid #eee; font-size:11px;">
+            ✅ Non-Goals 明确范围边界<br>
+            ✅ Alternatives 方案对比<br>
+            ✅ 设计文档是组织记忆
+          </td>
+        </tr>
+        <tr style="background:#fafafa;">
+          <td style="padding:8px; border-bottom:1px solid #eee; vertical-align:top;"><strong>ByteDance</strong></td>
+          <td style="padding:8px; border-bottom:1px solid #eee; font-size:11px;">
+            需求 → 初评 → <strong>方案设计(3-4天)</strong> → 粗估 → 详评 → 排期 → 开发 → 测试 → CR → 上线 → 复盘
+          </td>
+          <td style="padding:8px; border-bottom:1px solid #eee; font-size:11px;">
+            方案设计(4部分):<br>
+            ①需求背景 ②技术调研对比<br>
+            ③详细设计(流程图+伪代码) ④补充说明
+          </td>
+          <td style="padding:8px; border-bottom:1px solid #eee; font-size:11px;">
+            3阶段演进:<br>
+            Copilot → Agent →<br>
+            "AI工程师"全流程
+          </td>
+          <td style="padding:8px; border-bottom:1px solid #eee; font-size:11px;">
+            ✅ 方案设计含流程图+伪代码<br>
+            ✅ Silent Review 防群体思维<br>
+            ✅ DevMind 度量驱动改进
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:8px; border-bottom:1px solid #eee; vertical-align:top;"><strong>Alibaba</strong></td>
+          <td style="padding:8px; border-bottom:1px solid #eee; font-size:11px;">
+            需求(DingTalk) → R2C 技术方案 → 开发 → 集成 → 生产 (3大阶段)
+          </td>
+          <td style="padding:8px; border-bottom:1px solid #eee; font-size:11px;">
+            R2C Agent: 结构化文档<br>
+            → 技术计划(组件树/数据流)<br>
+            → 嵌套 Agent 任务
+          </td>
+          <td style="padding:8px; border-bottom:1px solid #eee; font-size:11px;">
+            100+ AI 编码规则<br>
+            >50% CR 评论由 AI 生成<br>
+            R2C Agent 自动化
+          </td>
+          <td style="padding:8px; border-bottom:1px solid #eee; font-size:11px;">
+            ✅ R2C = 需求→代码全链路<br>
+            ✅ 100+ 规则(需求/测试/安全)<br>
+            ✅ 分层测试覆盖率标准
+          </td>
+        </tr>
+        <tr style="background:#fafafa;">
+          <td style="padding:8px; border-bottom:1px solid #eee; vertical-align:top;"><strong>Microsoft</strong></td>
+          <td style="padding:8px; border-bottom:1px solid #eee; font-size:11px;">
+            创意→编码→设计转代码→测试→SRE→现代化 (6阶段 Agentic DevOps)
+          </td>
+          <td style="padding:8px; border-bottom:1px solid #eee; font-size:11px;">
+            AI PRD(几分钟出原型)<br>
+            Figma MCP → 代码<br>
+            Playwright(自然语言)
+          </td>
+          <td style="padding:8px; border-bottom:1px solid #eee; font-size:11px;">
+            Athena: PR审查+合规<br>
+            20-30%代码AI生成<br>
+            预测2030年达95%
+          </td>
+          <td style="padding:8px; border-bottom:1px solid #eee; font-size:11px;">
+            ✅ Figma→代码的MCP集成<br>
+            ✅ 自然语言驱动测试<br>
+            ✅ 全生命周期Agent覆盖
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:8px; border-bottom:1px solid #eee; vertical-align:top;"><strong>Meta</strong></td>
+          <td style="padding:8px; border-bottom:1px solid #eee; font-size:11px;">
+            PM描述意图 → AI生成原型 → 当天Demo → 质量审查 → 产品化
+          </td>
+          <td style="padding:8px; border-bottom:1px solid #eee; font-size:11px;">
+            Metamate: UI+逻辑原型<br>
+            双仓库: /prototypes + /product<br>
+            PM需10小时Prompt培训
+          </td>
+          <td style="padding:8px; border-bottom:1px solid #eee; font-size:11px;">
+            预计50%+代码AI生成<br>
+            PM自己做原型<br>
+            工程师做质量把关
+          </td>
+          <td style="padding:8px; border-bottom:1px solid #eee; font-size:11px;">
+            ✅ Vibe Coding→产品化路径<br>
+            ✅ 原型仓/产品仓分离<br>
+            ✅ PM直接参与AI工作流
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <div style="background:#FFF9C4; border-radius:6px; padding:10px; margin-top:10px; font-size:12px;">
+    <strong>共性结论:</strong> 五家公司全部遵循 <strong>需求 → 设计 → 评审 → 实施 → 测试 → 部署 → 复盘</strong> 的流水线。
+    早期阶段(需求/设计/评审)仍以人判断为主；中后期(实施/测试)AI渗透率最高。
+  </div>
+</div>
+
+<!-- ==================== SECTION 2 ==================== -->
+<div style="margin-top: 28px;">
+  <h3 style="color: #333; border-bottom: 2px solid #4CAF50; padding-bottom: 4px;">
+    二、AI 开发工作流工具矩阵
+  </h3>
+
+  <div style="display:flex; gap:12px; margin-top:12px;">
+    <!-- Spec-Driven -->
+    <div style="flex:1; background:#E8F5E9; border-radius:8px; padding:14px;">
+      <div style="font-weight:bold; color:#2E7D32; margin-bottom:8px;">Spec-Driven 框架</div>
+      <table style="width:100%; font-size:11px; border-collapse:collapse;">
+        <tr><td style="padding:4px 0; font-weight:bold;">OpenSpec</td><td style="padding:4px 0; font-size:10px;">propose→apply→archive, delta specs, brownfield-first</td></tr>
+        <tr><td style="padding:4px 0; font-weight:bold;">Spec Kit</td><td style="padding:4px 0; font-size:10px;">GitHub官方, 46.6k⭐, specify→plan→tasks, 宪法治理</td></tr>
+        <tr><td style="padding:4px 0; font-weight:bold;">AWS Kiro</td><td style="padding:4px 0; font-size:10px;">3模式: Spec-Driven / Vibe / Design-First, Steering Files</td></tr>
+        <tr><td style="padding:4px 0; font-weight:bold;">Bean-to-Cup</td><td style="padding:4px 0; font-size:10px;">9阶段状态机, 12个Agent, 边界规格</td></tr>
+        <tr><td style="padding:4px 0; font-weight:bold;">autonomous-sdlc</td><td style="padding:4px 0; font-size:10px;">40个Agent×11阶段, 3人盲审防附和</td></tr>
+        <tr><td style="padding:4px 0; font-weight:bold;">Superpowers</td><td style="padding:4px 0; font-size:10px;">brainstorm→plan→subagent-dev→finish, TDD铁律</td></tr>
+      </table>
+    </div>
+    <!-- IDE-based -->
+    <div style="flex:1; background:#E3F2FD; border-radius:8px; padding:14px;">
+      <div style="font-weight:bold; color:#1565C0; margin-bottom:8px;">IDE / Chat 驱动</div>
+      <table style="width:100%; font-size:11px; border-collapse:collapse;">
+        <tr><td style="padding:4px 0; font-weight:bold;">Cursor</td><td style="padding:4px 0; font-size:10px;">RIPER-5协议, rules-as-config, Agent+Composer</td></tr>
+        <tr><td style="padding:4px 0; font-weight:bold;">Windsurf</td><td style="padding:4px 0; font-size:10px;">80%规划20%执行, PRD→app_flow→db→tech→plan, Cascade</td></tr>
+        <tr><td style="padding:4px 0; font-weight:bold;">Aider</td><td style="padding:4px 0; font-size:10px;">39k⭐, CLI pair-programming, 自动git commit, Architect/Editor</td></tr>
+        <tr><td style="padding:4px 0; font-weight:bold;">Continue</td><td style="padding:4px 0; font-size:10px;">Chat→Plan→Agent 3模式, 模型自由, 可完全离线</td></tr>
+        <tr><td style="padding:4px 0; font-weight:bold;">Cline/RooCode</td><td style="padding:4px 0; font-size:10px;">角色Agent(Code/Architect/Debug), Memory Bank, MCP</td></tr>
+        <tr><td style="padding:4px 0; font-weight:bold;">Codex</td><td style="padding:4px 0; font-size:10px;">2026.3发布, Skills+Apps+MCP, 企业治理, 1.6M周活</td></tr>
+      </table>
+    </div>
+    <!-- Hybrid / Enterprise -->
+    <div style="flex:1; background:#FFF3E0; border-radius:8px; padding:14px;">
+      <div style="font-weight:bold; color:#E65100; margin-bottom:8px;">Hybrid / 企业级</div>
+      <table style="width:100%; font-size:11px; border-collapse:collapse;">
+        <tr><td style="padding:4px 0; font-weight:bold;">pro-workflow</td><td style="padding:4px 0; font-size:10px;">1.8k⭐, 自修正记忆+并行工作树+收尾仪式</td></tr>
+        <tr><td style="padding:4px 0; font-weight:bold;">gstack</td><td style="padding:4px 0; font-size:10px;">68k⭐, CEO/EM/QA角色Agent模拟完整SDLC</td></tr>
+        <tr><td style="padding:4px 0; font-weight:bold;">claude-memory</td><td style="padding:4px 0; font-size:10px;">36k⭐, SQLite+FTS5持久记忆, 自动上下文注入</td></tr>
+        <tr><td style="padding:4px 0; font-weight:bold;">autobuild</td><td style="padding:4px 0; font-size:10px;">5种工作流(full/fast/gc/hotfix/plan), YAML审计日志</td></tr>
+        <tr><td style="padding:4px 0; font-weight:bold;">AI-SDLC</td><td style="padding:4px 0; font-size:10px;">声明式治理, 跨harness审查, 工作树隔离, Operator TUI</td></tr>
+        <tr><td style="padding:4px 0; font-weight:bold;">AI-DLC</td><td style="padding:4px 0; font-size:10px;">Hat-based角色(Planner/Builder/Reviewer/Designer)</td></tr>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== SECTION 3 ==================== -->
+<div style="margin-top: 28px;">
+  <h3 style="color: #333; border-bottom: 2px solid #FF9800; padding-bottom: 4px;">
+    三、DevFlow vs 主要方案 关键差异矩阵
+  </h3>
+  <div style="overflow-x: auto; margin-top:12px;">
+    <table style="width:100%; border-collapse:collapse; font-size:12px;">
+      <thead>
+        <tr style="background:#f5f5f5;">
+          <th style="padding:8px; text-align:left; width:14%;">能力维度</th>
+          <th style="padding:8px; text-align:center; width:10%; background:#FFF9C4;">DevFlow</th>
+          <th style="padding:8px; text-align:center; width:10%;">Superpowers</th>
+          <th style="padding:8px; text-align:center; width:10%;">OpenSPEC</th>
+          <th style="padding:8px; text-align:center; width:10%;">Spec Kit</th>
+          <th style="padding:8px; text-align:center; width:10%;">Aider</th>
+          <th style="padding:8px; text-align:center; width:10%;">Windsurf</th>
+          <th style="padding:8px; text-align:center; width:10%;">Cursor</th>
+          <th style="padding:8px; text-align:center; width:10%;">Alibaba R2C</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td style="padding:6px; font-weight:bold;">无需求入口(项目扫描)</td>
+          <td style="padding:6px; text-align:center; background:#E8F5E9;">✅ /discover</td>
+          <td style="padding:6px; text-align:center;">❌</td>
+          <td style="padding:6px; text-align:center;">/opsx:explore</td>
+          <td style="padding:6px; text-align:center;">❌</td>
+          <td style="padding:6px; text-align:center;">❌</td>
+          <td style="padding:6px; text-align:center;">❌</td>
+          <td style="padding:6px; text-align:center;">❌</td>
+          <td style="padding:6px; text-align:center;">❌</td>
+        </tr>
+        <tr style="background:#fafafa;">
+          <td style="padding:6px; font-weight:bold;">模糊需求→清晰(对话对齐)</td>
+          <td style="padding:6px; text-align:center; background:#E8F5E9;">✅ /clarify</td>
+          <td style="padding:6px; text-align:center;">✅ brainstorming</td>
+          <td style="padding:6px; text-align:center;">/opsx:propose</td>
+          <td style="padding:6px; text-align:center;">/specify</td>
+          <td style="padding:6px; text-align:center;">闲聊式</td>
+          <td style="padding:6px; text-align:center;">PRD生成</td>
+          <td style="padding:6px; text-align:center;">Chat模式</td>
+          <td style="padding:6px; text-align:center;">DingTalk整合</td>
+        </tr>
+        <tr>
+          <td style="padding:6px; font-weight:bold;">需求编号追踪(R-001...)</td>
+          <td style="padding:6px; text-align:center; background:#E8F5E9;">✅ /breakdown</td>
+          <td style="padding:6px; text-align:center;">自然描述</td>
+          <td style="padding:6px; text-align:center;">tasks.md</td>
+          <td style="padding:6px; text-align:center;">tasks.md</td>
+          <td style="padding:6px; text-align:center;">❌</td>
+          <td style="padding:6px; text-align:center;">❌</td>
+          <td style="padding:6px; text-align:center;">❌</td>
+          <td style="padding:6px; text-align:center;">❌</td>
+        </tr>
+        <tr style="background:#fafafa;">
+          <td style="padding:6px; font-weight:bold;">业务流程图(非技术人员可读)</td>
+          <td style="padding:6px; text-align:center; background:#E8F5E9;">✅ /blueprint ①</td>
+          <td style="padding:6px; text-align:center;">可选(视觉伴侣)</td>
+          <td style="padding:6px; text-align:center;">❌</td>
+          <td style="padding:6px; text-align:center;">❌</td>
+          <td style="padding:6px; text-align:center;">❌</td>
+          <td style="padding:6px; text-align:center;">app_flow.md</td>
+          <td style="padding:6px; text-align:center;">❌</td>
+          <td style="padding:6px; text-align:center;">✅(方案设计含流程图)</td>
+        </tr>
+        <tr>
+          <td style="padding:6px; font-weight:bold;">Spec边界+Non-Goals</td>
+          <td style="padding:6px; text-align:center; background:#E8F5E9;">✅ /blueprint ②</td>
+          <td style="padding:6px; text-align:center;">设计阶段覆盖</td>
+          <td style="padding:6px; text-align:center;">design.md</td>
+          <td style="padding:6px; text-align:center;">/plan</td>
+          <td style="padding:6px; text-align:center;">❌</td>
+          <td style="padding:6px; text-align:center;">tech_stack.md</td>
+          <td style="padding:6px; text-align:center;">rules编码</td>
+          <td style="padding:6px; text-align:center;">结构化文档</td>
+        </tr>
+        <tr style="background:#fafafa;">
+          <td style="padding:6px; font-weight:bold;">测试用例编号追踪(TC-001...)</td>
+          <td style="padding:6px; text-align:center; background:#E8F5E9;">✅ /blueprint ③</td>
+          <td style="padding:6px; text-align:center;">TDD(无ID追踪)</td>
+          <td style="padding:6px; text-align:center;">❌</td>
+          <td style="padding:6px; text-align:center;">❌</td>
+          <td style="padding:6px; text-align:center;">❌</td>
+          <td style="padding:6px; text-align:center;">❌</td>
+          <td style="padding:6px; text-align:center;">❌</td>
+          <td style="padding:6px; text-align:center;">✅(分层覆盖率)</td>
+        </tr>
+        <tr>
+          <td style="padding:6px; font-weight:bold;">任务拆解编号(T-001...)</td>
+          <td style="padding:6px; text-align:center; background:#E8F5E9;">✅ /implement ①</td>
+          <td style="padding:6px; text-align:center;">plan中覆盖</td>
+          <td style="padding:6px; text-align:center;">tasks.md</td>
+          <td style="padding:6px; text-align:center;">/tasks</td>
+          <td style="padding:6px; text-align:center;">❌</td>
+          <td style="padding:6px; text-align:center;">impl_plan.md</td>
+          <td style="padding:6px; text-align:center;">❌</td>
+          <td style="padding:6px; text-align:center;">嵌套Agent任务</td>
+        </tr>
+        <tr style="background:#fafafa;">
+          <td style="padding:6px; font-weight:bold;">技术架构图(UML/泳道/状态机)</td>
+          <td style="padding:6px; text-align:center; background:#E8F5E9;">✅ /implement ②</td>
+          <td style="padding:6px; text-align:center;">文本描述</td>
+          <td style="padding:6px; text-align:center;">design.md文本</td>
+          <td style="padding:6px; text-align:center;">/plan</td>
+          <td style="padding:6px; text-align:center;">❌</td>
+          <td style="padding:6px; text-align:center;">❌</td>
+          <td style="padding:6px; text-align:center;">❌</td>
+          <td style="padding:6px; text-align:center;">✅(组件树+数据流)</td>
+        </tr>
+        <tr>
+          <td style="padding:6px; font-weight:bold;">并行Sub-agent执行</td>
+          <td style="padding:6px; text-align:center; background:#E8F5E9;">✅ /implement ③</td>
+          <td style="padding:6px; text-align:center;">✅ subagent-driven</td>
+          <td style="padding:6px; text-align:center;">顺序apply</td>
+          <td style="padding:6px; text-align:center;">顺序执行</td>
+          <td style="padding:6px; text-align:center;">❌</td>
+          <td style="padding:6px; text-align:center;">Cascade agent</td>
+          <td style="padding:6px; text-align:center;">Agent模式</td>
+          <td style="padding:6px; text-align:center;">✅嵌套Agent</td>
+        </tr>
+        <tr style="background:#fafafa;">
+          <td style="padding:6px; font-weight:bold;">智能回退(自动识别问题阶段)</td>
+          <td style="padding:6px; text-align:center; background:#E8F5E9;">✅</td>
+          <td style="padding:6px; text-align:center;">❌</td>
+          <td style="padding:6px; text-align:center;">❌</td>
+          <td style="padding:6px; text-align:center;">❌</td>
+          <td style="padding:6px; text-align:center;">/undo</td>
+          <td style="padding:6px; text-align:center;">❌</td>
+          <td style="padding:6px; text-align:center;">RIPER-5</td>
+          <td style="padding:6px; text-align:center;">❌</td>
+        </tr>
+        <tr>
+          <td style="padding:6px; font-weight:bold;">增量重做(只重做受影响的)</td>
+          <td style="padding:6px; text-align:center; background:#E8F5E9;">✅</td>
+          <td style="padding:6px; text-align:center;">❌</td>
+          <td style="padding:6px; text-align:center;">❌</td>
+          <td style="padding:6px; text-align:center;">❌</td>
+          <td style="padding:6px; text-align:center;">❌</td>
+          <td style="padding:6px; text-align:center;">❌</td>
+          <td style="padding:6px; text-align:center;">❌</td>
+          <td style="padding:6px; text-align:center;">❌</td>
+        </tr>
+        <tr style="background:#fafafa;">
+          <td style="padding:6px; font-weight:bold;">核心清单落盘+跨会话恢复</td>
+          <td style="padding:6px; text-align:center; background:#E8F5E9;">✅</td>
+          <td style="padding:6px; text-align:center;">❌(纯上下文)</td>
+          <td style="padding:6px; text-align:center;">✅(目录结构)</td>
+          <td style="padding:6px; text-align:center;">✅(目录结构)</td>
+          <td style="padding:6px; text-align:center;">Git历史</td>
+          <td style="padding:6px; text-align:center;">Cascade Memory</td>
+          <td style="padding:6px; text-align:center;">❌</td>
+          <td style="padding:6px; text-align:center;">❌</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ==================== SECTION 4 ==================== -->
+<div style="margin-top: 28px;">
+  <h3 style="color: #333; border-bottom: 2px solid #F44336; padding-bottom: 4px;">
+    四、DevFlow 的独特定位
+  </h3>
+
+  <div class="split" style="margin-top:12px;">
+    <div class="mockup">
+      <div class="mockup-header">三大差异化优势</div>
+      <div class="mockup-body" style="padding:14px;">
+        <div style="margin-bottom:12px;">
+          <strong style="color:#E65100;">1. 全链路编号追踪</strong><br>
+          <span style="font-size:12px; color:#555;">
+            R-001 → T-001 → TC-001 三条编号链路贯穿需求→任务→测试，
+            每个环节的状态可追踪。Superpowers/OpenSpec 缺失此能力。
+          </span>
+        </div>
+        <div style="margin-bottom:12px;">
+          <strong style="color:#E65100;">2. 智能回退 + 增量重做</strong><br>
+          <span style="font-size:12px; color:#555;">
+            用户只需说"需求有问题"，AI 自动识别归属阶段，
+            只重做受影响的增量，已验证的全跳过。业界唯一。
+          </span>
+        </div>
+        <div>
+          <strong style="color:#E65100;">3. 三态需求入口</strong><br>
+          <span style="font-size:12px; color:#555;">
+            /discover (无想法) → /clarify (模糊) → /breakdown (清晰)。
+            覆盖从零到一的完整需求光谱，Superpowers/OpenSpec 只覆盖后两种。
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <div class="mockup">
+      <div class="mockup-header">与行业共识的对齐</div>
+      <div class="mockup-body" style="padding:14px; font-size:12px; line-height:1.8;">
+        <strong>✅ 对齐的部分:</strong><br>
+        · 流程干线 = 五大公司一致模式 (需求→设计→实施→测试)<br>
+        · PRD Before Design (Google 标准，业务流程图优先于规格)<br>
+        · 方案对比+Alternatives (Google Design Doc 核心要求)<br>
+        · Spec 含 Non-Goals 边界 (Google/Bean-to-Cup 共识)<br>
+        · Sub-agent 并行 (Alibaba R2C 嵌套Agent 模式)<br>
+        · TDD + 代码审查 (Superpowers/字节跳动 质量门禁)<br>
+        <br>
+        <strong>🆕 DevFlow 独有的增量:</strong><br>
+        · 三态需求入口 → 任何起点的用户都能进入流程<br>
+        · 编号追踪贯穿全链路 → 需求到测试可追溯<br>
+        · 智能回退 → 减少返工浪费<br>
+        · 非技术人员流程图 → PM/业务方可参与确认<br>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== SECTION 5 ==================== -->
+<div style="margin-top: 28px;">
+  <h3 style="color: #333; border-bottom: 2px solid #9C27B0; padding-bottom: 4px;">
+    五、DevFlow 最终命令流程
+  </h3>
+
+  <div style="font-family: monospace; font-size: 13px; background: #1e1e1e; color: #d4d4d4; border-radius: 8px; padding: 16px; line-height: 2.2; margin-top: 12px;">
+    <span style="color: #569CD6;">Phase 1 — Requirements 需求管理</span><br>
+    <span style="color: #6A9955;">/devflow:discover</span>   无想法 → 扫描项目 → 优化机会列表<br>
+    <span style="color: #6A9955;">/devflow:clarify</span>    模糊需求 → 逐轮对话 → 清晰描述<br>
+    <span style="color: #6A9955;">/devflow:breakdown</span>  清晰需求 → 编号清单 (R-001...) 📄<br>
+    <br>
+    <span style="color: #569CD6;">Phase 2 — Design 方案设计</span><br>
+    <span style="color: #6A9955;">/devflow:blueprint</span>  需求清单 → 业务流程图 → Spec边界 → 测试用例 (TC-001...) 📄<br>
+    <br>
+    <span style="color: #569CD6;">Phase 3 — Implementation 编码实现</span><br>
+    <span style="color: #6A9955;">/devflow:implement</span>  蓝图 → 任务拆解 (T-001...) 📄 → 技术架构图 → Sub-agent编码<br>
+    <br>
+    <span style="color: #569CD6;">Phase 4 — Verification 测试验证</span><br>
+    <span style="color: #6A9955;">/devflow:verify</span>     代码完成 → 逐项验证 TC + R → 智能回退 ←→ 闭环<br>
+    <br>
+    <span style="color: #CE9178;">落盘文件:</span> devflow/requirements.md | design.md | tasks.md | test-cases.md
+  </div>
+</div>
+
+<div class="section" style="margin-top: 16px; font-size: 12px; color: #888;">
+  <p>调研覆盖: Google, ByteDance, Alibaba, Microsoft, Meta + OpenSpec, Spec Kit, AWS Kiro, Cursor, Windsurf, Aider, Continue.dev, Cline/RooCode, Codex, Bean-to-Cup, autonomous-sdlc, AI-SDLC, AI-DLC + Claude Code marketplace (pro-workflow, gstack, claude-memory, autobuild, commit-commands)</p>
+</div>
+
+</body>
+</html>

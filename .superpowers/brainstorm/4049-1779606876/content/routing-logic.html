@@ -1,0 +1,65 @@
+<h2>灵活入口 + 智能回退机制</h2>
+<p class="subtitle">用户可任意阶段跳入 · AI 自动识别反馈归属于哪个阶段 · 增量重做</p>
+
+<div class="split">
+  <div class="mockup">
+    <div class="mockup-header">灵活入口 — 任意阶段可进入</div>
+    <div class="mockup-body">
+      <div style="padding: 16px; font-family: monospace; font-size: 12px; line-height: 2;">
+        <span style="color: #999;">无想法</span> → /<strong>discover</strong><br>
+        <span style="color: #999;">　　　　　　↓</span><br>
+        <span style="color: #999;">模糊需求</span> → /<strong>clarify</strong><br>
+        <span style="color: #999;">　　　　　　↓</span><br>
+        <span style="color: #999;">清晰需求</span> → /<strong>breakdown</strong>　<span style="background: #FFEB3B; padding: 2px 6px; border-radius: 3px;">← 可直接跳入</span><br>
+        <span style="color: #999;">　　　　　　↓</span><br>
+        <span style="color: #999;">方案设计</span> → /<strong>blueprint</strong>　　<span style="background: #FFEB3B; padding: 2px 6px; border-radius: 3px;">← 可直接跳入</span><br>
+        <span style="color: #999;">　　　　　　↓</span><br>
+        <span style="color: #999;">编码实现</span> → /<strong>implement</strong>　　<span style="background: #FFEB3B; padding: 2px 6px; border-radius: 3px;">← 可直接跳入</span><br>
+        <span style="color: #999;">　　　　　　↓</span><br>
+        <span style="color: #999;">测试验证</span> → /<strong>verify</strong>　　　 <span style="background: #FFEB3B; padding: 2px 6px; border-radius: 3px;">← 可直接跳入</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="mockup">
+    <div class="mockup-header">智能回退 — AI 自动识别问题阶段</div>
+    <div class="mockup-body">
+      <div style="padding: 16px; font-size: 12px; line-height: 1.8;">
+        <div style="background: #E3F2FD; border-radius: 6px; padding: 10px; margin-bottom: 8px;">
+          <strong>场景:</strong> 正在 /implement，用户说「这个需求不对」
+        </div>
+        <div style="font-size: 13px; margin-bottom: 8px;">
+          <strong>AI 自动判断:</strong><br>
+          「需求不对」→ 属于 Phase 1 问题<br>
+          → 自动回退到 /<strong>clarify</strong> 或 /<strong>breakdown</strong>
+        </div>
+        <div style="background: #E8F5E9; border-radius: 6px; padding: 10px; margin-bottom: 8px;">
+          <strong>场景:</strong> 正在 /verify，测试发现设计缺陷
+        </div>
+        <div style="font-size: 13px; margin-bottom: 8px;">
+          <strong>AI 自动判断:</strong><br>
+          「设计缺陷」→ 属于 Phase 2 问题<br>
+          → 自动回退到 /<strong>blueprint</strong>
+        </div>
+        <div style="background: #FFF9C4; border-radius: 6px; padding: 10px;">
+          <strong>增量重做:</strong> 只重做受影响的链条<br>
+          已验证通过的功能点 → 跳过不重做
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>阶段完成时的交互模式</h3>
+  <div style="background: #f5f5f5; border-radius: 8px; padding: 16px; font-size: 13px; line-height: 1.8;">
+    <p>每个阶段完成时，AI 主动询问：</p>
+    <p>
+      ✅ 本阶段完成。接下来：<br>
+      　<strong>1.</strong> 进入下一阶段 → /<em>next-command</em><br>
+      　<strong>2.</strong> 对当前阶段有疑问 → 告诉我具体问题，我自动定位回退<br>
+      　<strong>3.</strong> 暂不需要继续
+    </p>
+    <p style="color: #888; margin-top: 12px;">用户只需说「XX 有问题」，AI 自动识别归属阶段并回退。</p>
+  </div>
+</div>
