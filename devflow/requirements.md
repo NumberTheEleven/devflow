@@ -6,7 +6,7 @@
 ## R-001: 重构 verify 主流程为自动化验证管道
 
 **Priority:** P0
-**Status:** pending
+**Status:** done
 **Description:** 将 verify 从"人工逐条核对清单"改为"先自动扫描 → 再人工核对"的两阶段管道
 **Depends On:** none
 **Acceptance Criteria:**
@@ -19,7 +19,7 @@
 ## R-002: 控制台错误零容忍检查
 
 **Priority:** P0
-**Status:** pending
+**Status:** done
 **Description:** 使用 browser_console_messages 捕获所有页面 console.error，任何错误即标记对应 TC 失败
 **Depends On:** R-001
 **Acceptance Criteria:**
@@ -32,7 +32,7 @@
 ## R-003: 网络请求健康检查
 
 **Priority:** P0
-**Status:** pending
+**Status:** done
 **Description:** 使用 browser_network_requests 监控所有 HTTP 请求，捕获 4xx/5xx 响应
 **Depends On:** R-001
 **Acceptance Criteria:**
@@ -45,7 +45,7 @@
 ## R-004: 全页面运行时健康扫描
 
 **Priority:** P0
-**Status:** pending
+**Status:** done
 **Description:** 遍历所有路由页面，每页滚动触发 lazy load，检查页面崩溃、白屏、JS 运行时错误
 **Depends On:** R-001
 **Acceptance Criteria:**
@@ -59,7 +59,7 @@
 ## R-005: 结构化 DOM 快照断言
 
 **Priority:** P1
-**Status:** pending
+**Status:** done
 **Description:** 使用 browser_snapshot 获取语义化页面结构，验证关键 UI 元素（按钮、表单、导航）存在且可交互
 **Depends On:** R-001
 **Acceptance Criteria:**
@@ -72,7 +72,7 @@
 ## R-006: 保留人工 TC-xxx 核对
 
 **Priority:** P1
-**Status:** pending
+**Status:** done
 **Description:** Phase 1 自动扫描完成后，保留人工逐条核对 TC-xxx 的 Phase 2，覆盖自动化无法验证的业务逻辑
 **Depends On:** none
 **Acceptance Criteria:**
@@ -85,7 +85,7 @@
 ## R-007: 验证报告增强
 
 **Priority:** P2
-**Status:** pending
+**Status:** done
 **Description:** 报告包含自动化检查的详细结果，按类别分组展示通过/失败/跳过的统计
 **Depends On:** R-002, R-003, R-004, R-005
 **Acceptance Criteria:**

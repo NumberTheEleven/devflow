@@ -6,7 +6,7 @@
 
 ## TC-001: verify 两阶段流程结构验证
 
-**Status:** pending
+**Status:** done
 **Covers:** R-001 (重构 verify 主流程为自动化验证管道)
 **Type:** manual
 **Steps:**
@@ -19,7 +19,7 @@
 
 ## TC-002: 自动化检查项到 TC 的映射
 
-**Status:** pending
+**Status:** done
 **Covers:** R-001 (重构 verify 主流程为自动化验证管道)
 **Type:** manual
 **Steps:**
@@ -32,7 +32,7 @@
 
 ## TC-003: Playwright MCP 可用性检查
 
-**Status:** pending
+**Status:** done
 **Covers:** R-001 (重构 verify 主流程为自动化验证管道)
 **Type:** manual
 **Steps:**
@@ -45,7 +45,7 @@
 
 ## TC-004: 单页面控制台错误捕获
 
-**Status:** pending
+**Status:** done
 **Covers:** R-002 (控制台错误零容忍检查)
 **Type:** e2e
 **Steps:**
@@ -59,7 +59,7 @@
 
 ## TC-005: console.error allowlist 机制
 
-**Status:** pending
+**Status:** done
 **Covers:** R-002 (控制台错误零容忍检查)
 **Type:** e2e
 **Steps:**
@@ -73,7 +73,7 @@
 
 ## TC-006: 网络请求 4xx/5xx 捕获
 
-**Status:** pending
+**Status:** done
 **Covers:** R-003 (网络请求健康检查)
 **Type:** e2e
 **Steps:**
@@ -87,7 +87,7 @@
 
 ## TC-007: 正常请求不误报
 
-**Status:** pending
+**Status:** done
 **Covers:** R-003 (网络请求健康检查)
 **Type:** e2e
 **Steps:**
@@ -100,7 +100,7 @@
 
 ## TC-008: 路由页面自动发现
 
-**Status:** pending
+**Status:** done
 **Covers:** R-004 (全页面运行时健康扫描)
 **Type:** e2e
 **Steps:**
@@ -113,7 +113,7 @@
 
 ## TC-009: 页面滚动触发懒加载
 
-**Status:** pending
+**Status:** done
 **Covers:** R-004 (全页面运行时健康扫描)
 **Type:** e2e
 **Steps:**
@@ -127,7 +127,7 @@
 
 ## TC-010: 白屏/崩溃检测
 
-**Status:** pending
+**Status:** done
 **Covers:** R-004 (全页面运行时健康扫描)
 **Type:** e2e
 **Steps:**
@@ -141,7 +141,7 @@
 
 ## TC-011: 页面超时处理
 
-**Status:** pending
+**Status:** done
 **Covers:** R-004 (全页面运行时健康扫描)
 **Type:** e2e
 **Steps:**
@@ -154,7 +154,7 @@
 
 ## TC-012: browser_snapshot 语义结构断言
 
-**Status:** pending
+**Status:** done
 **Covers:** R-005 (结构化 DOM 快照断言)
 **Type:** e2e
 **Steps:**
@@ -168,7 +168,7 @@
 
 ## TC-013: snapshot 容忍 UI 微调
 
-**Status:** pending
+**Status:** done
 **Covers:** R-005 (结构化 DOM 快照断言)
 **Type:** e2e
 **Steps:**
@@ -181,7 +181,7 @@
 
 ## TC-014: Phase 2 人工核对保留
 
-**Status:** pending
+**Status:** done
 **Covers:** R-006 (保留人工 TC-xxx 核对)
 **Type:** manual
 **Steps:**
@@ -195,7 +195,7 @@
 
 ## TC-015: 自动化覆盖 TC 不再人工重复
 
-**Status:** pending
+**Status:** done
 **Covers:** R-006 (保留人工 TC-xxx 核对)
 **Type:** manual
 **Steps:**
@@ -208,7 +208,7 @@
 
 ## TC-016: 验证报告自动化汇总
 
-**Status:** pending
+**Status:** done
 **Covers:** R-007 (验证报告增强)
 **Type:** manual
 **Steps:**
@@ -222,7 +222,7 @@
 
 ## TC-017: 失败项修复建议
 
-**Status:** pending
+**Status:** done
 **Covers:** R-007 (验证报告增强)
 **Type:** manual
 **Steps:**
