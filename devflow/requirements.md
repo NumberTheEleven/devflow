@@ -1,98 +1,129 @@
-# Requirements Checklist
+# 需求清单
 
-> Generated: 2026-06-02
-> Source: /devflow:breakdown
+> 生成时间: 2026-06-09
+> 来源: /devflow:breakdown
 
-## R-001: 重构 verify 主流程为自动化验证管道
+## R-001: `/devflow` 单一入口命令
 
-**Priority:** P0
-**Status:** done
-**Description:** 将 verify 从"人工逐条核对清单"改为"先自动扫描 → 再人工核对"的两阶段管道
-**Depends On:** none
-**Acceptance Criteria:**
-- [ ] verify 流程明确分为 Phase 1 自动扫描 + Phase 2 人工核对
-- [ ] Phase 1 完成后汇总所有自动化发现，再进入 Phase 2
-- [ ] 每个自动化检查项映射到对应的 TC-xxx
-
----
-
-## R-002: 控制台错误零容忍检查
-
-**Priority:** P0
-**Status:** done
-**Description:** 使用 browser_console_messages 捕获所有页面 console.error，任何错误即标记对应 TC 失败
-**Depends On:** R-001
-**Acceptance Criteria:**
-- [ ] 每个页面导航后自动采集 console 消息
-- [ ] console.error 级别的消息标记为测试失败
-- [ ] 提供可配置的 allowlist（允许特定已知无害错误）
+**优先级:** P0
+**状态:** 已完成
+**描述:** 将 `/devflow` 作为唯一的命令入口，接受 feature 描述参数，替代原有的 6 个子命令（discover/clarify/breakdown/blueprint/implement/verify）
+**依赖:** 无
+**验收标准:**
+- [ ] 用户输入 `/devflow <feature描述>` 即可启动完整开发流程
+- [ ] 原有 6 个子命令入口不再暴露给用户
+- [ ] 原各阶段核心逻辑保持不变，作为内部阶段执行
 
 ---
 
-## R-003: 网络请求健康检查
+## R-002: clarify 确认后创建 git worktree
 
-**Priority:** P0
-**Status:** done
-**Description:** 使用 browser_network_requests 监控所有 HTTP 请求，捕获 4xx/5xx 响应
-**Depends On:** R-001
-**Acceptance Criteria:**
-- [ ] 自动记录所有 HTTP 请求的状态码
-- [ ] 4xx/5xx 响应标记为异常并关联到对应 TC
-- [ ] 报告中列出异常请求的 URL、状态码、触发页面
-
----
-
-## R-004: 全页面运行时健康扫描
-
-**Priority:** P0
-**Status:** done
-**Description:** 遍历所有路由页面，每页滚动触发 lazy load，检查页面崩溃、白屏、JS 运行时错误
-**Depends On:** R-001
-**Acceptance Criteria:**
-- [ ] 自动发现所有需要测试的路由页面
-- [ ] 每个页面执行滚动操作触发懒加载
-- [ ] 捕获页面崩溃或白屏（通过 DOM 结构判断）
-- [ ] 超时或无响应的页面标记为失败
+**优先级:** P0
+**状态:** 已完成
+**描述:** clarify 阶段在主仓库进行纯对话（不产生文件改动），需求确认并提炼 feature 名称后，创建 git worktree 隔离环境。遵循 using-git-worktrees skill 的最佳实践（Step 0 检测已有隔离 → 原生工具优先）
+**依赖:** R-001
+**验收标准:**
+- [ ] clarify 阶段在主仓库执行，不产生任何文件改动
+- [ ] clarify 确认后从需求中提炼 feature 名称（如 "user-auth"）
+- [ ] feature 名称确认后再创建 worktree
+- [ ] 检测是否已在 worktree 中，已在则跳过创建、直接恢复
+- [ ] 使用平台原生 `EnterWorktree` 工具创建隔离环境
+- [ ] 创建失败时优雅降级，在主目录继续流程
 
 ---
 
-## R-005: 结构化 DOM 快照断言
+## R-003: 阶段自动推进 + checkpoint
 
-**Priority:** P1
-**Status:** done
-**Description:** 使用 browser_snapshot 获取语义化页面结构，验证关键 UI 元素（按钮、表单、导航）存在且可交互
-**Depends On:** R-001
-**Acceptance Criteria:**
-- [ ] 关键页面生成 browser_snapshot 并进行断言
-- [ ] 验证核心交互元素存在（提交按钮、搜索框、导航链接等）
-- [ ] 替代纯文本断言，减少假阳性
-
----
-
-## R-006: 保留人工 TC-xxx 核对
-
-**Priority:** P1
-**Status:** done
-**Description:** Phase 1 自动扫描完成后，保留人工逐条核对 TC-xxx 的 Phase 2，覆盖自动化无法验证的业务逻辑
-**Depends On:** none
-**Acceptance Criteria:**
-- [ ] 保留原 verify 人工核对流程作为 Phase 2
-- [ ] Phase 2 仅处理自动化未覆盖的 TC-xxx
-- [ ] 人工核对与自动化结果汇总到同一报告
+**优先级:** P0
+**状态:** 已完成
+**描述:** 各阶段（clarify → breakdown → blueprint → implement → verify）自动推进，每阶段结束时提供 checkpoint 选择
+**依赖:** R-001
+**验收标准:**
+- [ ] 每阶段完成后自动进入下一阶段
+- [ ] 每阶段结束时输出 checkpoint 提示：`[Y] 继续` / `[暂停]` / `[跳到某阶段]`
+- [ ] 用户暂停后 worktree 保留，后续可继续
+- [ ] 用户可跳到后续阶段（如需求明确时直接跳到实现）
 
 ---
 
-## R-007: 验证报告增强
+## R-004: 流程完成自动清理 worktree
 
-**Priority:** P2
-**Status:** done
-**Description:** 报告包含自动化检查的详细结果，按类别分组展示通过/失败/跳过的统计
-**Depends On:** R-002, R-003, R-004, R-005
-**Acceptance Criteria:**
-- [ ] 报告增加自动化检查汇总（console / network / health / snapshot）
-- [ ] 每个失败的检查项指向具体 TC 和修复建议
-- [ ] 通过率按类别统计（自动 vs 人工）
+**优先级:** P0
+**状态:** 已完成
+**描述:** verify 阶段全部通过后，自动清理 worktree 并合并到主分支
+**依赖:** R-002, R-003
+**验收标准:**
+- [ ] verify 全部通过后触发清理流程
+- [ ] 清理前确认用户是否需要保留
+- [ ] 自动合并 worktree 分支到主分支
+- [ ] 删除 worktree 目录，移除关联分支
 
 ---
 
-*Tracked by DevFlow. Do not edit manually.*
+## R-005: 暂停 worktree 列表
+
+**优先级:** P1
+**状态:** 已完成
+**描述:** 提供查看所有未完成 worktree 的能力，显示 feature 名称、当前阶段、创建时间
+**依赖:** R-002
+**验收标准:**
+- [ ] 用户可通过某种方式列出所有未完成的 worktree
+- [ ] 每个 worktree 显示：feature 名称、当前所在阶段、创建时间
+- [ ] 区分"进行中"和"已暂停"状态
+
+---
+
+## R-006: 手动清理未完成 worktree
+
+**优先级:** P1
+**状态:** 已完成
+**描述:** 提供清理未完成/half-state worktree 的能力，清理前确认
+**依赖:** R-005
+**验收标准:**
+- [ ] 用户可选择清理指定的未完成 worktree
+- [ ] 清理前显示 worktree 详情并请求确认
+- [ ] 保留选项：仅删除 worktree 目录 / 同时删除分支 / 先合并再清理
+
+---
+
+## R-007: Worktree 状态追踪
+
+**优先级:** P2
+**状态:** 已完成
+**描述:** 在 worktree 中持久化当前流程阶段信息，支持暂停后恢复
+**依赖:** R-003
+**验收标准:**
+- [ ] 每个 worktree 记录当前所在阶段（clarify/breakdown/blueprint/implement/verify）
+- [ ] 暂停后重新进入该 worktree 时，自动恢复到暂停时的阶段
+- [ ] 状态信息存储在 worktree 内的 `devflow/` 目录中
+
+---
+
+## R-008: 渐进过渡 — 保留内部阶段能力
+
+**优先级:** P2
+**状态:** 已完成
+**描述:** 虽然对外只暴露 `/devflow`，但内部各阶段模块保持独立可调用，便于调试和未来灵活调整
+**依赖:** R-001
+**验收标准:**
+- [ ] 各阶段逻辑模块化，可独立测试
+- [ ] 阶段间通过明确的数据接口（devflow/ 文件）传递
+- [ ] 文档说明内部阶段调用方式（供高级用户参考）
+
+---
+
+## R-009: 模板与输出语言统一为中文
+
+**优先级:** P1
+**状态:** 已完成
+**描述:** 所有模板文件内容、状态字段、checkpoint 提示等运行时输出全部统一为中文；保留英文文件名
+**依赖:** R-001
+**验收标准:**
+- [ ] 所有模板字段名改为中文（优先级、状态、描述、依赖、验收标准）
+- [ ] 状态值改为中文（待开始、进行中、已完成）
+- [ ] 文件名保持英文（requirements.md, design.md, tasks.md, test-cases.md）
+- [ ] checkpoint 提示、错误信息等运行时输出统一中文
+
+---
+
+*由 DevFlow 追踪。请勿手动编辑。*

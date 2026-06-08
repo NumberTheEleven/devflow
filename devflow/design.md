@@ -1,94 +1,87 @@
-# Design Specification
+# 设计规格
 
-> Generated: 2026-06-02
-> Source: /devflow:blueprint
-> Based on: devflow/requirements.md
+> 生成时间: 2026-06-09
+> 来源: /devflow:blueprint
+> 基于: devflow/requirements.md
 
-## Business Process Flow
-
-升级后 verify 的两阶段验证管道：
+## 业务流程
 
 ```mermaid
 flowchart TD
-    A[/用户执行 /devflow:verify/] --> B[Step 1: 加载所有跟踪文件]
-    B --> B1[requirements.md / design.md / tasks.md / test-cases.md]
-
-    B1 --> C{Phase 1: Playwright 自动扫描}
-
-    C --> D[1a. 发现所有路由页面]
-    D --> E[1b. 逐页执行健康检查]
-
-    E --> E1["导航到页面 → browser_navigate"]
-    E1 --> E2["捕获控制台错误 → browser_console_messages"]
-    E2 --> E3["监控网络请求 → browser_network_requests"]
-    E3 --> E4["结构化快照 → browser_snapshot"]
-    E4 --> E5["滚动触发懒加载 → browser_scroll"]
-    E5 --> E6["检查崩溃/白屏 → DOM 结构判断"]
-
-    E6 --> F{还有其他页面?}
-    F -->|是| E
-    F -->|否| G[1c. 汇总自动化发现]
-
-    G --> H[/Phase 1 报告: console / network / health / snapshot/]
-
-    H --> I{Phase 2: 人工 TC 核对}
-    I --> J[逐条检查自动化未覆盖的 TC-xxx]
-    J --> K[业务逻辑手动验证]
-    K --> L[标记 TC 状态: done / pending]
-
-    L --> M[Step 5: 生成验证报告]
-    M --> M1["自动检查汇总 + 人工核对结果 + 通过率统计"]
-
-    M1 --> N{有失败项?}
-    N -->|是| O[Smart Rollback: 定位归属阶段]
-    O --> O1["bug → /implement<br/>design → /blueprint<br/>requirement → /breakdown"]
-    N -->|否| P[/全部通过，DevFlow 闭环/]
+    A([用户输入: /devflow 模糊需求]) --> B{当前在 worktree 中?}
+    B -->|否| C[在主仓库开始 clarify]
+    B -->|是| D[恢复到当前阶段]
+    C --> E[需求澄清 clarify]
+    D --> E
+    E --> F{checkpoint}
+    F -->|Y 继续| G[提炼 feature 名称]
+    G --> H[创建 worktree]
+    H --> I[需求拆解 breakdown]
+    F -->|跳转| J1[选择目标阶段]
+    J1 --> I
+    J1 --> K
+    J1 --> L
+    J1 --> M
+    I --> J{checkpoint}
+    J -->|Y 继续| K[方案蓝图 blueprint]
+    J -->|跳转| J2[选择目标阶段]
+    K --> L[编码实现 implement]
+    L --> M[测试验证 verify]
+    M --> N{全部通过?}
+    N -->|是| O[自动合并 + 清理 worktree]
+    N -->|否| P[标记失败项, 建议回退]
+    P --> L
+    O --> Q([流程完成])
 ```
 
-## Scope & Boundaries
+## 范围与边界
 
-### In Scope
-- 仅修改 `skills/verify/SKILL.md` 文件
-- Phase 1 四项自动化检查：控制台错误、网络请求、运行时健康、DOM 快照
-- Phase 2 保留原有人工核对流程
-- 增强验证报告，汇总自动+人工结果
-- 使用 Playwright MCP 已有工具（browser_console_messages, browser_network_requests, browser_snapshot, browser_navigate, browser_scroll）
+### 在范围内
+- `/devflow` 单一入口命令，接受模糊需求描述
+- clarify 阶段在主仓库纯对话，不产生文件改动
+- clarify 确认后提炼 feature 名称，创建 worktree
+- 五阶段自动推进（clarify → breakdown → blueprint → implement → verify）
+- 每阶段 checkpoint（Y 继续 / 跳转到指定阶段）
+- verify 全部通过后自动合并分支并清理 worktree
+- 暂停 worktree 列表与手动清理
+- 阶段状态持久化到 `devflow/` 目录
+- 所有模板字段、状态值、运行时输出中文化
 
-### Out of Scope (Non-Goals)
-- 不引入新的 MCP Server 或插件
-- 不依赖多模态 / 视觉模型（不做视觉回归测试）
-- 不修改其他 5 个 skill（clarify/breakdown/blueprint/implement/discover）
-- 不做性能测试（Lighthouse / Core Web Vitals）
-- 不做无障碍合规审计（WCAG）
-- 不做跨浏览器兼容性测试
-- 不写 Playwright 测试脚本文件（.spec.ts）— 通过 MCP 工具实时执行
+### 明确排除
+- 自动定时清理 stale worktree
+- 多仓库/跨仓库支持
+- 各阶段内部核心逻辑的大幅改动
+- Web UI 或可视化 dashboard
 
-## Technical Standards
+## 技术标准
 
-- **Skill 格式:** YAML frontmatter + Markdown body，遵循 Claude Code Plugin 规范
-- **allowed-tools 更新:** 新增 Playwright MCP 工具：`browser_navigate`, `browser_console_messages`, `browser_network_requests`, `browser_snapshot`, `browser_scroll`, `browser_take_screenshot`（可选用于调试）
-- **代码质量:** 按 DevFlow Production-Grade Baseline 标准，skill 中的指令必须完整覆盖错误处理、边界条件
-- **兼容性:** 不依赖特定模型的多模态能力，所有检查基于结构化数据（控制台文本、HTTP 状态码、DOM 语义结构）
+- **平台:** Claude Code 插件系统
+- **Skill 格式:** Markdown + YAML frontmatter
+- **Worktree:** 使用平台原生 `EnterWorktree` 工具
+- **状态文件:** `devflow/` 目录，英文文件名，中文内容
+- **阶段模块:** 保持独立可调用，通过 `devflow/` 文件传递数据
+- **Clarify 约束:** 不产生任何文件写入
 
-## Design Decisions
+## 设计决策
 
-| Decision | Rationale | Alternatives Considered |
-|----------|-----------|------------------------|
-| 两阶段管道（自动→人工）而非全自动 | 业务逻辑验证仍需要人工判断；自动化覆盖结构性缺陷 | 全自动 Playwright 脚本：假阳性率高，业务逻辑无法验证 |
-| 使用 Playwright MCP 工具而非写 .spec.ts 文件 | MCP 工具实时执行，无需项目配置；skill 自包含更简洁 | 生成 Playwright 测试文件：需要项目集成，用户需要额外配置 |
-| browser_snapshot 替代多模态视觉 | 结构化语义数据无需视觉模型即可验证 UI 结构 | 视觉回归测试 (toHaveScreenshot)：需要视觉模型，受模型限制 |
-| console.error 零容忍 + allowlist | 零假阴性是底线，但已知无害错误（favicon 404 等）应允许豁免 | 仅报告不标记失败：AI 容易忽略警告 |
-| 按类别分组报告而非扁平列表 | 便于定位问题根因（网络层 vs UI 层 vs 业务层） | 扁平 TC 列表：信息丢失，难以诊断 |
+| 决策 | 理由 | 考虑的替代方案 |
+|------|------|---------------|
+| clarify 在主仓库执行 | 需求对齐阶段无需文件隔离，避免过早创建 worktree | 全程在 worktree 中（隔离过度，feature 名称未定） |
+| clarify 确认后才创建 worktree | feature 名称从需求中提炼，worktree 命名有意义 | 启动时立即创建 worktree（名称无意义或需后续重命名） |
+| 单一 `/devflow` 入口 | 简化用户心智模型 | 保留 6 个子命令（更灵活但更复杂） |
+| 每阶段 checkpoint | 最大控制权，支持跳转 | 无 checkpoint 全自动（无法中途干预） |
+| 完成时自动清理 | 减少手工操作，防止 worktree 堆积 | 始终手动清理（更安全但更繁琐） |
+| 英文文件名 + 中文内容 | 工具链兼容 + 中文化体验 | 全中文文件名（工具链兼容性风险） |
 
-## Risks & Mitigations
+## 风险与缓解
 
-| Risk | Impact | Mitigation |
-|------|--------|------------|
-| Playwright MCP 不可用或未启动 | Phase 1 完全无法执行 | Step 1 检查 MCP 可用性，不可用时降级为全人工模式并提示用户 |
-| 路由发现不完整 | 遗漏页面未检查 | 询问用户确认路由列表；支持手动补充 URL |
-| console.error allowlist 过于宽松 | 真实错误被豁免 | allowlist 默认仅包含 favicon.ico 404 和 source map 404，其他需用户显式确认 |
-| browser_snapshot 断言脆弱（UI 微调导致假阳性） | 误报过多降低信任 | 使用存在性断言（元素是否存在）而非精确文本匹配；不检查 CSS 样式细节 |
-| DeepSeek V4 Pro 工具调用延迟 | 大量页面扫描耗时长 | 设置每页超时（15s），超时页面记录为警告而非失败 |
+| 风险 | 影响 | 缓解措施 |
+|------|------|---------|
+| `EnterWorktree` 在某些环境不可用 | 无法创建隔离环境 | 降级为在主目录工作，明确提示用户 |
+| clarify 阶段意外产生文件写入 | 文件在 worktree 控制之外 | clarify skill 内部约束，不调用 Write/Edit |
+| 大量 half-state worktree 堆积 | 磁盘空间浪费 | list + cleanup 命令，后续可加定时清理 |
+| 现有 6 命令用户不习惯 | 学习曲线 | 内部阶段模块保留，文档说明 |
 
 ---
-*Tracked by DevFlow. Do not edit manually.*
+
+*由 DevFlow 追踪。请勿手动编辑。*
