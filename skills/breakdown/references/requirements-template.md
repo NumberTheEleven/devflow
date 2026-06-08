@@ -1,22 +1,23 @@
-# Requirements Checklist
+# 需求清单
 
-> Generated: YYYY-MM-DD
-> Source: /devflow:breakdown
+> 生成时间: YYYY-MM-DD
+> 来源: /devflow — 需求拆解阶段
 
-## R-001: [Title]
+## R-001: [标题]
 
-**Priority:** P0 / P1 / P2
-**Status:** pending / in_progress / done
-**Description:** [What needs to be done]
-**Depends On:** [R-xxx or none]
-**Acceptance Criteria:**
-- [ ] [Measurable criterion]
-- [ ] [Measurable criterion]
+**优先级:** P0 / P1 / P2
+**状态:** 待开始 / 进行中 / 已完成
+**描述:** [需要完成什么]
+**依赖:** [R-xxx 或 无]
+**验收标准:**
+- [ ] [可衡量的标准]
+- [ ] [可衡量的标准]
 
 ---
 
-## R-002: [Title]
+## R-002: [标题]
 ...
 
 ---
-*Tracked by DevFlow. Do not edit manually.*
+
+*由 DevFlow 追踪。请勿手动编辑。*

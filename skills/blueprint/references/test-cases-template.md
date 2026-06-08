@@ -1,25 +1,26 @@
-# Test Cases Checklist
+# 测试用例清单
 
-> Generated: YYYY-MM-DD
-> Source: /devflow:blueprint
-> Linked Requirements: devflow/requirements.md
+> 生成时间: YYYY-MM-DD
+> 来源: /devflow — 方案蓝图阶段
+> 关联需求: devflow/requirements.md
 
-## TC-001: [Title]
+## TC-001: [标题]
 
-**Status:** pending / in_progress / done
-**Covers:** R-001 ([Requirement Title])
-**Type:** unit / integration / e2e / manual
-**Steps:**
-1. [Setup step]
-2. [Action step]
-3. [Verification step]
+**状态:** 待开始 / 进行中 / 已完成
+**覆盖:** R-001（[需求标题]）
+**类型:** 单元 / 集成 / 端到端 / 手工
+**步骤:**
+1. [准备步骤]
+2. [操作步骤]
+3. [验证步骤]
 
-**Expected Result:** [What should happen]
+**预期结果:** [应该发生什么]
 
 ---
 
-## TC-002: [Title]
+## TC-002: [标题]
 ...
 
 ---
-*Tracked by DevFlow. Do not edit manually.*
+
+*由 DevFlow 追踪。请勿手动编辑。*

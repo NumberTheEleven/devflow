@@ -1,49 +1,50 @@
-# Design Specification
+# 设计规格
 
-> Generated: YYYY-MM-DD
-> Source: /devflow:blueprint
-> Based on: devflow/requirements.md
+> 生成时间: YYYY-MM-DD
+> 来源: /devflow — 方案蓝图阶段
+> 基于: devflow/requirements.md
 
-## Business Process Flow
+## 业务流程
 
-[Flowchart description — use Mermaid syntax for renderability]
+[流程图描述 — 使用 Mermaid 语法]
 
 ```mermaid
 flowchart TD
-    A[Start] --> B[Step]
-    B --> C{Decision}
-    C -->|Yes| D[Action]
-    C -->|No| E[Alternative]
+    A[开始] --> B[步骤]
+    B --> C{决策}
+    C -->|是| D[动作]
+    C -->|否| E[替代方案]
 ```
 
-## Scope & Boundaries
+## 范围与边界
 
-### In Scope
-- Item 1
-- Item 2
+### 在范围内
+- 项目 1
+- 项目 2
 
-### Out of Scope (Non-Goals)
-- Explicitly excluded item 1
-- Explicitly excluded item 2
+### 明确排除
+- 排除项 1
+- 排除项 2
 
-## Technical Standards
+## 技术标准
 
-- Coding standards: [Default AI conventions]
-- Architecture constraints: [If any]
-- Technology choices: [If applicable]
-- Performance requirements: [If any]
+- 编码规范: [默认 AI 约定]
+- 架构约束: [如有]
+- 技术选型: [如适用]
+- 性能要求: [如有]
 
-## Design Decisions
+## 设计决策
 
-| Decision | Rationale | Alternatives Considered |
-|----------|-----------|------------------------|
+| 决策 | 理由 | 考虑的替代方案 |
+|------|------|---------------|
 | ... | ... | ... |
 
-## Risks & Mitigations
+## 风险与缓解
 
-| Risk | Impact | Mitigation |
-|------|--------|------------|
+| 风险 | 影响 | 缓解措施 |
+|------|------|---------|
 | ... | ... | ... |
 
 ---
-*Tracked by DevFlow. Do not edit manually.*
+
+*由 DevFlow 追踪。请勿手动编辑。*
