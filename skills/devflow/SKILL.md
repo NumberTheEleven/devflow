@@ -22,7 +22,7 @@ Phase 3: 方案蓝图 (blueprint) → 流程图 + 设计规格 + TC-xxx
     ↓ checkpoint
 Phase 4: 编码实现 (implement) → T-xxx 任务 + 架构图 + 代码
     ↓ checkpoint
-Phase 5: 测试验证 (verify) → 逐项核对 TC + 智能回退
+Phase 5: 测试验证 (verify) → L1烟雾 + L2交互 + L3手工，证据驱动 + 智能回退
     ↓
 全部通过 → 自动合并 + 清理 worktree
 ```
@@ -236,30 +236,40 @@ Worktree 就绪后，输出：
 ## Phase 5: 测试验证
 
 **位置：** worktree 中
-**参考：** 原 verify skill 核心逻辑
+**参考：** 原 verify skill 核心逻辑，升级为三层验证架构
 
 ### 5.1 流程
 
 1. 加载所有跟踪文件（requirements.md, design.md, tasks.md, test-cases.md）
-2. 逐条验证 TC-xxx（自动化测试运行 + 手工测试核对）
-3. 逐条验证 R-xxx 是否满足验收标准
-4. 发现问题时：
-   - 实现 bug → 建议重新执行对应 T-xxx
-   - 设计问题 → 建议回退到 Phase 3
+2. **TC 智能路由：** 按关键字和类型将每条 TC 分发到 L1/L2/L3
+3. **L1 烟雾扫描：** Playwright 自动扫描所有路由（console error / network health / runtime health / DOM snapshot），检查页面基础设施是否正常
+4. **L2 交互验证：** 对交互类 TC 使用 Playwright 执行真实用户操作（点击、输入、提交），记录 Interaction Trace（操作前后 DOM diff），判断功能是否真的可用
+5. **L3 结构化手工验证：** 对无法自动化的 TC（权限、动画、视觉等），逐条收集证据，无证据不标记通过
+6. **深度评分：** 计算验证深度（真正执行过的 TC 占比）和证据覆盖率，暴露"走过场"验证
+7. 发现问题时：
+   - L1 失败 → 基础设施问题，建议重新执行对应 T-xxx
+   - L2 失败 → 功能 bug，建议重新执行对应 T-xxx
+   - L3 失败 / 设计问题 → 建议回退到 Phase 3
    - 需求问题 → 建议回退到 Phase 1/2
-5. 生成验证报告（通过率、失败项、建议）
+8. 生成统一验证报告（verification-log.md），包含三层结果 + 交互追踪 + 深度评分
 
 ### 5.2 验证结果
 
-**全部通过：**
+**全部通过（深度 = 100%）：**
 
-> "所有测试用例通过，所有需求验证完毕。DevFlow 流程完成。"
+> "全部验证通过（深度 100%，证据覆盖率 100%）。DevFlow 流程完成。"
 
 进入 Phase 6（流程完成）。
 
+**深度不足但有通过项：**
+
+> "验证深度 [X]%，[N] 条 TC 未执行或无证据。不建议标记为完成。"
+
+不进入清理。更新 `devflow/state.json` 记录待验证项。
+
 **有失败项：**
 
-> "验证未完全通过。X 项失败，Y 项待确认。建议回退到 [具体阶段] 修复。"
+> "验证未通过。X 项失败，Y 项待确认。建议回退到 [具体阶段] 修复。"
 
 不进入清理。更新 `devflow/state.json` 记录待修复项。
 

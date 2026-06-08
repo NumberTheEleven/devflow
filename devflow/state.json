@@ -1,0 +1,13 @@
+{
+  "feature": "verify-layered",
+  "phase": "implement",
+  "created_at": "2026-06-09T12:00:00+08:00",
+  "version": "2.0",
+  "checkpoints": {
+    "clarify": "done",
+    "breakdown": "done",
+    "blueprint": "done",
+    "implement": "pending",
+    "verify": "pending"
+  }
+}

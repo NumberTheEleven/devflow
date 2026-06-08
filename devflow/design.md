@@ -1,86 +1,134 @@
 # 设计规格
 
 > 生成时间: 2026-06-09
-> 来源: /devflow:blueprint
+> 来源: /devflow — 方案蓝图阶段
 > 基于: devflow/requirements.md
 
 ## 业务流程
 
 ```mermaid
 flowchart TD
-    A([用户输入: /devflow 模糊需求]) --> B{当前在 worktree 中?}
-    B -->|否| C[在主仓库开始 clarify]
-    B -->|是| D[恢复到当前阶段]
-    C --> E[需求澄清 clarify]
-    D --> E
-    E --> F{checkpoint}
-    F -->|Y 继续| G[提炼 feature 名称]
-    G --> H[创建 worktree]
-    H --> I[需求拆解 breakdown]
-    F -->|跳转| J1[选择目标阶段]
-    J1 --> I
-    J1 --> K
-    J1 --> L
-    J1 --> M
-    I --> J{checkpoint}
-    J -->|Y 继续| K[方案蓝图 blueprint]
-    J -->|跳转| J2[选择目标阶段]
-    K --> L[编码实现 implement]
-    L --> M[测试验证 verify]
-    M --> N{全部通过?}
-    N -->|是| O[自动合并 + 清理 worktree]
-    N -->|否| P[标记失败项, 建议回退]
-    P --> L
-    O --> Q([流程完成])
+    A([verify 阶段启动]) --> B[加载 devflow 文档]
+    B --> C{Playwright MCP 可用?}
+    C -->|可用| D[TC 智能路由引擎]
+    C -->|不可用| E[所有 TC 路由到 L3]
+    D --> F[展示路由计划，用户确认]
+    F --> G[L1: 烟雾扫描]
+    G --> H[L2: 交互验证]
+    H --> I[L3: 结构化手工验证]
+    E --> I
+    I --> J[聚合证据 + 计算深度评分]
+    J --> K[生成统一验证报告]
+    K --> L{全部通过 且 深度=100%?}
+    L -->|是| M[验证完成 → 进入清理]
+    L -->|否| N[标记未验证项 → 建议回退]
+    N --> O{用户选择}
+    O -->|回退修复| P[跳转到对应阶段]
+    O -->|接受风险| M
+```
+
+## 技术架构（数据流）
+
+```mermaid
+flowchart LR
+    subgraph Input
+        REQ[requirements.md]
+        DES[design.md]
+        TSK[tasks.md]
+        TC[test-cases.md]
+    end
+
+    subgraph Router["TC 路由引擎"]
+        DIR[关键词匹配 + 类型推断]
+        PLAN[验证计划]
+    end
+
+    subgraph Layers["三层验证"]
+        L1["L1: Smoke Scanner<br/>console / network<br/>health / DOM"]
+        L2["L2: Interaction Engine<br/>Playwright MCP<br/>点击 / 输入 / 提交"]
+        L3["L3: Manual Protocol<br/>事实核查<br/>证据收集"]
+    end
+
+    subgraph Output
+        AGG[证据聚合器]
+        SCA[深度评分器]
+        REP[verification-log.md]
+    end
+
+    REQ & DES & TSK & TC --> DIR
+    DIR --> PLAN
+    PLAN --> L1 --> L2 --> L3
+    L1 & L2 & L3 --> AGG --> SCA --> REP
 ```
 
 ## 范围与边界
 
 ### 在范围内
-- `/devflow` 单一入口命令，接受模糊需求描述
-- clarify 阶段在主仓库纯对话，不产生文件改动
-- clarify 确认后提炼 feature 名称，创建 worktree
-- 五阶段自动推进（clarify → breakdown → blueprint → implement → verify）
-- 每阶段 checkpoint（Y 继续 / 跳转到指定阶段）
-- verify 全部通过后自动合并分支并清理 worktree
-- 暂停 worktree 列表与手动清理
-- 阶段状态持久化到 `devflow/` 目录
-- 所有模板字段、状态值、运行时输出中文化
+- L1 烟雾扫描：保留现有 4 类检查（console error / network health / runtime health / DOM snapshot），措辞微调
+- L2 交互验证：使用 Playwright MCP 执行真实用户操作（点击、输入、提交），记录 DOM 前后状态
+- L3 结构化手工验证：证据驱动的 TC 逐条核对，无证据不标记完成
+- TC 智能路由：关键词 + 类型匹配，将 TC 自动分发到三层
+- 验证深度评分：执行率 + 证据覆盖率 + 分层覆盖分布
+- 统一报告格式：单份 `verification-log.md` 包含全部三层结果
+- Playwright 降级：不可用时全部路由到 L3，保持流程完整性
+- 纯文本证据链：DOM snapshot / console log / network log / interaction trace，零截图零录像
 
 ### 明确排除
-- 自动定时清理 stale worktree
-- 多仓库/跨仓库支持
-- 各阶段内部核心逻辑的大幅改动
-- Web UI 或可视化 dashboard
-
-## 技术标准
-
-- **平台:** Claude Code 插件系统
-- **Skill 格式:** Markdown + YAML frontmatter
-- **Worktree:** 使用平台原生 `EnterWorktree` 工具
-- **状态文件:** `devflow/` 目录，英文文件名，中文内容
-- **阶段模块:** 保持独立可调用，通过 `devflow/` 文件传递数据
-- **Clarify 约束:** 不产生任何文件写入
+- 截图与录像（无调试价值、占用磁盘空间）
+- L2 的自动化断言（如 assert text equals、assert element visible）——只做 DOM 变化检测，不做精确断言
+- 多浏览器并行扫描
+- 性能/Lighthouse 测试
+- 视觉回归测试
+- 邮件/短信/第三方回调等外部依赖的自动验证
 
 ## 设计决策
 
 | 决策 | 理由 | 考虑的替代方案 |
 |------|------|---------------|
-| clarify 在主仓库执行 | 需求对齐阶段无需文件隔离，避免过早创建 worktree | 全程在 worktree 中（隔离过度，feature 名称未定） |
-| clarify 确认后才创建 worktree | feature 名称从需求中提炼，worktree 命名有意义 | 启动时立即创建 worktree（名称无意义或需后续重命名） |
-| 单一 `/devflow` 入口 | 简化用户心智模型 | 保留 6 个子命令（更灵活但更复杂） |
-| 每阶段 checkpoint | 最大控制权，支持跳转 | 无 checkpoint 全自动（无法中途干预） |
-| 完成时自动清理 | 减少手工操作，防止 worktree 堆积 | 始终手动清理（更安全但更繁琐） |
-| 英文文件名 + 中文内容 | 工具链兼容 + 中文化体验 | 全中文文件名（工具链兼容性风险） |
+| 三层递进而非大一统 | L1 快（秒级）、L2 真交互（分钟级）、L3 人工判断，各司其职 | 全部自动化（假阳性高）、全部手工（太慢） |
+| L2 不做精确断言，只做 DOM diff | 避免依赖具体文案，提高通用性 | 精确文本断言（跨页面脆弱，文案变化就误报） |
+| 纯文本证据，零截图零录像 | 截图难定位根因；录像不可行且占空间；文本能提供全部调试信息 | 截图 on fail（用户反馈无调试价值） |
+| 证据驱动：无证据=未验证 | 防止"走过场"——不能口头说通过 | 信任模型判断（虚假通过风险高） |
+| 深度评分暴露验证质量 | 让用户一眼看到验证是否充分，而非仅有通过率 | 仅看 pass/fail（掩盖验证不充分的问题） |
+| TC 路由可人工调整 | 模型判断可能不准，用户应有最终决定权 | 全自动路由（路由错误无法纠正） |
 
 ## 风险与缓解
 
 | 风险 | 影响 | 缓解措施 |
 |------|------|---------|
-| `EnterWorktree` 在某些环境不可用 | 无法创建隔离环境 | 降级为在主目录工作，明确提示用户 |
-| clarify 阶段意外产生文件写入 | 文件在 worktree 控制之外 | clarify skill 内部约束，不调用 Write/Edit |
-| 大量 half-state worktree 堆积 | 磁盘空间浪费 | list + cleanup 命令，后续可加定时清理 |
-| 现有 6 命令用户不习惯 | 学习曲线 | 内部阶段模块保留，文档说明 |
+| Playwright MCP 不可用 | L2 全部降级到 L3，交互验证需要人工执行 | 降级时明确提示，结构化引导用户手动操作并报告结果 |
+| L2 自动操作触发副作用（如真实发送邮件、扣款） | 生产数据污染 | 验证前检查 baseURL（非 localhost 时警告），TC 步骤中标注"有副作用"的跳过自动执行 |
+| DOM diff 噪声大（动态 ID、时间戳） | 无法准确判断操作是否生效 | 取 DOM 结构的语义标签（button、input、nav、form 等）而非属性值做 diff |
+| 复杂交互链条过长导致超时 | L2 卡住 | 单条 TC 最长操作 5 步，超过则拆分；单步超时 30s |
+| 用户跳过 L3 证据收集 | 验证报告证据覆盖率低 | 深度 < 100% 时报告顶部红色警告；跳过 TC 必须给原因 |
+
+## TC 路由规则（参考实现）
+
+以下规则用于 TC 智能路由引擎 (R-004)，在此定义供实现引用：
+
+### 关键词 → 层级映射
+
+| TC 内容含以下关键词 | 路由到 | 原因 |
+|---------------------|--------|------|
+| 不报错、控制台错误、网络请求、HTTP 状态、页面加载、资源加载、白屏、崩溃 | L1 | 静态健康检查可覆盖 |
+| 点击、输入、填写、提交、选择、上传、删除、编辑、创建、搜索、登录、注册、跳转、导航 | L2 | 需要真实交互 |
+| 权限、角色、动画、过渡、响应式、文案、样式、颜色、布局、流畅、视觉 | L3 | 需要人的主观判断 |
+
+### TC 类型 → 默认层级
+
+| TC 类型字段 | 默认层级 | 说明 |
+|-------------|----------|------|
+| 单元 | L1 | 代码级测试，检查错误输出即可 |
+| 集成 | L1 或 L2 | 视关键词而定 |
+| 端到端 | L2 | 模拟用户操作链路 |
+| 手工 | L3 | 需要人工判断 |
+
+### 路由优先级
+
+1. 如果 TC 类型为"端到端" 且内容含交互关键词 → L2
+2. 如果 TC 类型为"手工" 且内容含主观判断关键词 → L3
+3. 如果 TC 内容含 L1 关键词但不含 L2/L3 关键词 → L1
+4. 默认 → L3（宁可手工验证，不冒假阳性风险）
 
 ---
 
