@@ -281,21 +281,67 @@ Worktree 就绪后，输出：
 
 > "DevFlow 流程全部完成。是否清理 worktree 并合并到主分支？[Y] 确认清理 / [保留 worktree]"
 
-### 6.2 自动清理
+### 6.2 预清理提交（兜底保护）
 
-确认后，执行：
+**目的：** 防止 worktree 中存在未提交文件（如下载的数据、临时配置等），清理时永久丢失。
 
-1. 确保所有更改已提交
-2. 使用 `ExitWorktree` 工具，action 为 `"remove"`
-3. 如果 `ExitWorktree` 不可用，手动执行：
+确认清理后，**必须先执行**以下步骤：
+
+1. **检测未提交变更：**
+   ```bash
+   git status --porcelain
+   ```
+   同时检查文件大小，标记超大文件：
+   ```bash
+   git ls-files --others --exclude-standard | while read f; do
+     size=$(stat -c%s "$f" 2>/dev/null || echo 0)
+     [ "$size" -gt 10485760 ] && echo "LARGE: $f ($(( size / 1048576 ))MB)"
+   done
+   ```
+
+2. **根据检测结果处理：**
+
+   **情况 A — 无任何未提交变更：** 直接进入 6.3 清理。
+
+   **情况 B — 仅有已追踪文件的修改（无 untracked）：**
+   - 列出变更文件
+   - `git add -u && git commit -m "chore: auto-commit pending changes before DevFlow cleanup"`
+
+   **情况 C — 存在未追踪文件（untracked）：**
+   - 列出所有未追踪文件及其大小
+   - 如果存在 **超过 10MB 的大文件**，单独列出并警告用户：
+     > "⚠️ 检测到超大未追踪文件（>10MB），直接提交可能污染 git 历史。建议："
+     > "  1. 移动到外部存储（如对象存储），在代码中保留下载脚本"
+     > "  2. 使用 Git LFS 管理"
+     > "  3. 如果确定要提交，回复'全部提交'"
+   - 如果用户选择"全部提交"，或没有超大文件：
+     `git add -A && git commit -m "chore: auto-commit all worktree contents before DevFlow cleanup"`
+   - 如果用户选择跳过某些文件，协助添加到 `.gitignore` 后再提交
+
+   **情况 D — 用户拒绝提交：**
+   - 不强制。输出警告："⚠️ 未提交文件将在 worktree 删除时永久丢失，已确认跳过。"
+   - 更新状态文件记录此决策。
+
+3. **提交后二次确认：**
+   ```bash
+   git status --porcelain
+   ```
+   必须干净才能进入清理。如果不干净（用户跳过了某些文件），再次提醒并确认。
+
+### 6.3 自动清理
+
+预清理提交完成后，执行：
+
+1. 使用 `ExitWorktree` 工具，action 为 `"remove"`
+2. 如果 `ExitWorktree` 不可用，手动执行：
    - 合并 feature 分支到主分支
    - `git worktree remove <path>`
    - 删除 feature 分支（已合并）
-4. 输出："Worktree 已清理，分支已合并。DevFlow v2.0 闭环完成。"
+3. 输出："Worktree 已清理，分支已合并。DevFlow v2.0 闭环完成。"
 
-### 6.3 保留
+### 6.4 保留
 
-如果用户选择保留 worktree，状态文件标记 `phase: "completed"`，用户后续可手动清理。
+如果用户选择保留 worktree，跳过预清理提交和清理步骤，状态文件标记 `phase: "completed"`，用户后续可手动清理。
 
 ---
 
