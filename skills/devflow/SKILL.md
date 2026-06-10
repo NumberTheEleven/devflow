@@ -1,20 +1,18 @@
 ---
 name: devflow
-description: DevFlow v2.0 — AI 开发规范流程，单一入口，自动 worktree 隔离，按阶段推进完整开发流程
+description: DevFlow v2.1 — AI 开发规范流程，单一入口，按阶段推进完整开发流程
 argument-hint: [模糊需求描述]
-allowed-tools: [Read, Write, Glob, Grep, Bash, Edit, Agent, TaskCreate, WebSearch, WebFetch, EnterWorktree, ExitWorktree, LSP, Skill]
+allowed-tools: [Read, Write, Glob, Grep, Bash, Edit, Agent, TaskCreate, WebSearch, WebFetch, LSP, Skill]
 ---
 
-# /devflow — DevFlow v2.0
+# /devflow — DevFlow v2.1
 
 ## 流程总览
 
 ```
 用户输入: /devflow 模糊需求
     ↓
-Phase 1: 需求澄清 (clarify) — 在主仓库，纯对话，不产生文件
-    ↓
-提炼 feature 名称，创建 git worktree 隔离环境
+Phase 1: 需求澄清 (clarify) — 纯对话，不产生文件
     ↓
 Phase 2: 需求拆解 (breakdown) → R-xxx 清单
     ↓ checkpoint
@@ -24,15 +22,15 @@ Phase 4: 编码实现 (implement) → T-xxx 任务 + 架构图 + 代码
     ↓ checkpoint
 Phase 5: 测试验证 (verify) → L1烟雾 + L2交互 + L3手工，证据驱动 + 智能回退
     ↓
-全部通过 → 自动合并 + 清理 worktree
+全部通过 → 流程完成
 ```
 
 **核心原则：**
 - 唯一入口：`/devflow`，没有子命令
-- clarify 在主仓库执行，不产生任何文件写入
-- clarify 确认后才创建 worktree，后续所有文件改动在隔离环境中
+- clarify 阶段不产生任何文件写入
+- clarify 确认后创建 `devflow/` 状态目录，后续文件改动在主仓库中进行
 - 每阶段自动推进，checkpoint 提供"继续"和"跳转"两个选项
-- 流程全部通过后自动清理：合并到主分支 + 删除 worktree
+- 流程全部通过后：确保所有更改已提交，标记完成
 
 ---
 
@@ -40,71 +38,53 @@ Phase 5: 测试验证 (verify) → L1烟雾 + L2交互 + L3手工，证据驱动
 
 收到 `/devflow` 请求后，首先判断当前环境：
 
-### 0.1 检测是否已在 worktree 中
+### 0.1 检测是否有活跃会话
 
-```bash
-GIT_DIR=$(cd "$(git rev-parse --git-dir)" 2>/dev/null && pwd -P)
-GIT_COMMON=$(cd "$(git rev-parse --git-common-dir)" 2>/dev/null && pwd -P)
-```
+检查项目根目录下 `devflow/state.json` 是否存在：
 
-**如果 `GIT_DIR != GIT_COMMON`（且不是 submodule）：** 已在 worktree 中。
-- 检查 `devflow/` 目录是否存在状态文件
-- 如果有状态记录，输出："检测到已有 DevFlow 会话在 `<feature-name>` worktree 中，当前阶段：`<phase>`，从该阶段恢复。"
-- 直接跳转到对应阶段继续执行
-- 如果没有状态记录，从 clarify 开始（可能是旧版本遗留的 worktree）
+- **存在且 `phase` 不是 `"completed"`：** 说明有未完成的 DevFlow 会话。
+  - 输出："检测到已有 DevFlow 会话（feature: `<feature>`，当前阶段：`<phase>`），从该阶段恢复。"
+  - 跳转到对应阶段继续执行
 
-**如果 `GIT_DIR == GIT_COMMON`：** 在主仓库中。
-- 如果没有传入需求描述，询问用户要做什么
-- 如果传入了需求描述，进入 Phase 1（需求澄清）
-
-**如果是 submodule：** 当作主仓库处理，进入 Phase 1。
+- **不存在或 `phase` 为 `"completed"`：**
+  - 如果没有传入需求描述，询问用户要做什么
+  - 如果传入了需求描述，进入 Phase 1（需求澄清）
 
 ### 0.2 管理命令识别
 
 如果用户输入的是管理命令而非需求描述，走对应分支：
 
-- `/devflow list` → Step 0.M: 列出所有未完成 worktree
-- `/devflow cleanup` → Step 0.M: 手动清理 worktree
+- `/devflow list` → 列出 devflow/ 目录下的历史会话
+- `/devflow cleanup` → 清理指定会话的 devflow/ 状态文件
 
 ---
 
-## Step 0.M: Worktree 管理命令
+## Step 0.M: 会话管理
 
-### /devflow list — 列出所有未完成 worktree
+### /devflow list — 列出所有 DevFlow 会话
 
-通过 `git worktree list` 获取所有 worktree，排除主仓库，对每个 worktree 尝试读取其 `devflow/` 状态文件，输出：
+读取 `devflow/` 目录下的 `state.json`（如果存在），输出：
 
 ```
-DevFlow Worktree 列表：
+DevFlow 会话列表：
 
-| Feature 名称 | 当前阶段 | 创建时间 | 路径 |
+| Feature 名称 | 当前阶段 | 创建时间 | 状态 |
 |-------------|---------|---------|------|
-| user-auth   | breakdown | 2026-06-08 14:30 | .worktrees/user-auth |
-| payment     | blueprint | 2026-06-09 10:00 | .worktrees/payment |
-| (无状态)     | 未知     | 2026-06-07 09:00 | .worktrees/old-stuff |
-
-共 3 个 worktree，其中 2 个有 DevFlow 状态。
+| user-auth   | implement | 2026-06-08 14:30 | 进行中 |
+| payment     | completed | 2026-06-09 10:00 | 已完成 |
 ```
 
-对于没有状态文件的 worktree，标注"未知"（可能是旧版本遗留或手动创建的）。
+### /devflow cleanup — 清理已完成的会话
 
-### /devflow cleanup — 清理未完成 worktree
-
-1. 先运行 list 逻辑，展示所有 worktree
-2. 询问用户选择要清理的 worktree（可按编号或名称选择）
-3. 选择后显示详情（feature 名称、阶段、创建时间、分支名、最后提交信息）
-4. 提供清理选项：
-   - **仅删除 worktree 目录**（保留分支）
-   - **删除 worktree + 分支**（彻底清理）
-   - **先合并再清理**（保留代码变更到主分支）
-   - **取消**
-5. 确认后执行。使用 `git worktree remove <path>` 删除 worktree，按选项处理分支。
+1. 先运行 list 逻辑，展示所有会话
+2. 询问用户选择要清理的会话（可按编号或名称选择）
+3. 确认后删除 `devflow/state.json` 及关联的跟踪文件（requirements.md, design.md, tasks.md, test-cases.md, verification-log.md）
+4. 输出清理结果
 
 ---
 
 ## Phase 1: 需求澄清
 
-**位置：** 主仓库（未创建 worktree）
 **约束：** 不调用 Write/Edit，不产生任何文件改动
 
 ### 1.1 流程
@@ -127,7 +107,7 @@ DevFlow Worktree 列表：
 
 > "需求澄清完成。是否继续进入需求拆解？[Y] 继续 / [跳转到 X 阶段]"
 
-- **Y（默认）：** 进入 Phase 1.3（提炼 feature 名称 + 创建 worktree）
+- **Y（默认）：** 进入 Phase 1.3（提炼 feature 名称 + 初始化会话）
 - **跳转到 方案蓝图 / 编码实现 / 测试验证：** 跳过中间阶段
 
 如果用户不回复，自然暂停。下次 `/devflow` 时通过 Step 0 检测恢复。
@@ -139,32 +119,25 @@ DevFlow Worktree 列表：
 - 4 个词以内，描述性强
 - 向用户确认："基于需求，feature 名称建议为 `xxx`，可以吗？"
 
-### 1.4 创建 Worktree
+### 1.4 初始化会话
 
-Feature 名称确认后，创建隔离环境：
+Feature 名称确认后，在项目根目录创建 `devflow/` 目录并写入状态文件 `devflow/state.json`：
 
+```json
+{
+  "feature": "<feature-name>",
+  "phase": "breakdown",
+  "created_at": "<ISO timestamp>",
+  "version": "2.1",
+  "requirements_confirmed": true
+}
 ```
-使用 EnterWorktree 工具，name 参数为提炼的 feature 名称
-```
-
-- 遵循 using-git-worktrees skill 的实践：原生工具优先
-- 如果 `EnterWorktree` 不可用或失败，降级为在主目录继续流程，并明确提示用户
-- 创建成功后，在 worktree 中创建 `devflow/` 目录
-- 写入初始状态文件 `devflow/state.json`：
-  ```json
-  {
-    "feature": "<feature-name>",
-    "phase": "breakdown",
-    "created_at": "<ISO timestamp>",
-    "requirements_confirmed": true
-  }
-  ```
 
 ### 1.5 进入下一阶段
 
-Worktree 就绪后，输出：
+会话初始化后，输出：
 
-> "Worktree 就绪：`<path>`。开始需求拆解..."
+> "会话就绪：`<feature-name>`。开始需求拆解..."
 
 自动进入 Phase 2。
 
@@ -172,7 +145,6 @@ Worktree 就绪后，输出：
 
 ## Phase 2: 需求拆解
 
-**位置：** worktree 中
 **参考：** 原 breakdown skill 核心逻辑
 
 ### 2.1 流程
@@ -190,13 +162,12 @@ Worktree 就绪后，输出：
 
 - **Y（默认）：** 进入 Phase 3
 - **跳转：** 跳到后续阶段
-- **不回复：** 自然暂停。更新 `devflow/state.json` 的 `phase` 为 `"blueprint"`（表示下一步是 blueprint）。
+- **不回复：** 自然暂停。更新 `devflow/state.json` 的 `phase` 为 `"blueprint"`。
 
 ---
 
 ## Phase 3: 方案蓝图
 
-**位置：** worktree 中
 **参考：** 原 blueprint skill 核心逻辑
 
 ### 3.1 流程
@@ -214,7 +185,6 @@ Worktree 就绪后，输出：
 
 ## Phase 4: 编码实现
 
-**位置：** worktree 中
 **参考：** 原 implement skill 核心逻辑
 
 ### 4.1 流程
@@ -235,7 +205,6 @@ Worktree 就绪后，输出：
 
 ## Phase 5: 测试验证
 
-**位置：** worktree 中
 **参考：** 原 verify skill 核心逻辑，升级为三层验证架构
 
 ### 5.1 流程
@@ -265,27 +234,27 @@ Worktree 就绪后，输出：
 
 > "验证深度 [X]%，[N] 条 TC 未执行或无证据。不建议标记为完成。"
 
-不进入清理。更新 `devflow/state.json` 记录待验证项。
+不进入完成。更新 `devflow/state.json` 记录待验证项。
 
 **有失败项：**
 
 > "验证未通过。X 项失败，Y 项待确认。建议回退到 [具体阶段] 修复。"
 
-不进入清理。更新 `devflow/state.json` 记录待修复项。
+不进入完成。更新 `devflow/state.json` 记录待修复项。
 
 ---
 
-## Phase 6: 流程完成与清理
+## Phase 6: 流程完成
 
 ### 6.1 确认
 
-> "DevFlow 流程全部完成。是否清理 worktree 并合并到主分支？[Y] 确认清理 / [保留 worktree]"
+> "DevFlow 流程全部完成。是否结束会话？[Y] 确认完成 / [保留会话]"
 
-### 6.2 预清理提交（兜底保护）
+### 6.2 预完成提交（兜底保护）
 
-**目的：** 防止 worktree 中存在未提交文件（如下载的数据、临时配置等），清理时永久丢失。
+**目的：** 防止存在未提交文件（如下载的数据、临时配置等），会话结束后丢失。
 
-确认清理后，**必须先执行**以下步骤：
+确认完成后，**必须先执行**以下步骤：
 
 1. **检测未提交变更：**
    ```bash
@@ -301,11 +270,11 @@ Worktree 就绪后，输出：
 
 2. **根据检测结果处理：**
 
-   **情况 A — 无任何未提交变更：** 直接进入 6.3 清理。
+   **情况 A — 无任何未提交变更：** 直接进入 6.3 标记完成。
 
    **情况 B — 仅有已追踪文件的修改（无 untracked）：**
    - 列出变更文件
-   - `git add -u && git commit -m "chore: auto-commit pending changes before DevFlow cleanup"`
+   - `git add -u && git commit -m "chore: auto-commit pending changes before DevFlow completion"`
 
    **情况 C — 存在未追踪文件（untracked）：**
    - 列出所有未追踪文件及其大小
@@ -315,33 +284,35 @@ Worktree 就绪后，输出：
      > "  2. 使用 Git LFS 管理"
      > "  3. 如果确定要提交，回复'全部提交'"
    - 如果用户选择"全部提交"，或没有超大文件：
-     `git add -A && git commit -m "chore: auto-commit all worktree contents before DevFlow cleanup"`
+     `git add -A && git commit -m "chore: auto-commit all contents before DevFlow completion"`
    - 如果用户选择跳过某些文件，协助添加到 `.gitignore` 后再提交
 
    **情况 D — 用户拒绝提交：**
-   - 不强制。输出警告："⚠️ 未提交文件将在 worktree 删除时永久丢失，已确认跳过。"
+   - 不强制。输出警告："⚠️ 未提交文件将在会话结束后丢失，已确认跳过。"
    - 更新状态文件记录此决策。
 
 3. **提交后二次确认：**
    ```bash
    git status --porcelain
    ```
-   必须干净才能进入清理。如果不干净（用户跳过了某些文件），再次提醒并确认。
+   必须干净才能标记完成。如果不干净（用户跳过了某些文件），再次提醒并确认。
 
-### 6.3 自动清理
+### 6.3 标记完成
 
-预清理提交完成后，执行：
+提交确认完成后，更新 `devflow/state.json`：
 
-1. 使用 `ExitWorktree` 工具，action 为 `"remove"`
-2. 如果 `ExitWorktree` 不可用，手动执行：
-   - 合并 feature 分支到主分支
-   - `git worktree remove <path>`
-   - 删除 feature 分支（已合并）
-3. 输出："Worktree 已清理，分支已合并。DevFlow v2.0 闭环完成。"
+```json
+{
+  "phase": "completed",
+  "completed_at": "<ISO timestamp>"
+}
+```
 
-### 6.4 保留
+输出："DevFlow v2.1 流程完成。跟踪文件保存在 devflow/ 目录。"
 
-如果用户选择保留 worktree，跳过预清理提交和清理步骤，状态文件标记 `phase: "completed"`，用户后续可手动清理。
+### 6.4 保留会话
+
+如果用户选择保留会话，状态文件标记 `phase: "completed"`，用户后续可通过 `/devflow cleanup` 手动清理。
 
 ---
 
@@ -358,7 +329,7 @@ Worktree 就绪后，输出：
 | 跳转到 验证 | 跳到 verify |
 | 暂停 / 稍后 / 不回复 | 更新状态文件，自然暂停 |
 
-**无显式"暂停"选项。** 用户不回复就是暂停。下次 `/devflow` 时自动恢复。
+**无显式"暂停"选项。** 用户不回复就是暂停。下次 `/devflow` 时通过 Step 0 检测恢复。
 
 ---
 
@@ -371,7 +342,7 @@ Worktree 就绪后，输出：
   "feature": "user-auth",
   "phase": "implement",
   "created_at": "2026-06-09T14:30:00+08:00",
-  "version": "2.0",
+  "version": "2.1",
   "checkpoints": {
     "clarify": "done",
     "breakdown": "done",
@@ -388,12 +359,10 @@ Worktree 就绪后，输出：
 
 ---
 
-## 错误处理与降级
+## 错误处理
 
 | 场景 | 处理 |
 |------|------|
-| EnterWorktree 不可用 | 提示用户，在主目录继续流程 |
-| Worktree 创建失败 | 显示错误，询问是否在主目录继续 |
 | 阶段执行报错 | 显示错误详情，不跳过阶段，询问是否重试 |
 | 状态文件损坏 | 提示用户，从 clarify 重新开始或手动指定阶段 |
 | git 仓库不干净 | 提示用户先清理工作区再开始 |
@@ -402,10 +371,9 @@ Worktree 就绪后，输出：
 
 ## 参考
 
-- using-git-worktrees skill：worktree 创建/检测最佳实践
 - 各阶段内部模板位于 `skills/*/references/` 目录
 - 原 6 个 skill 文件保留在 `skills/` 目录中供高级用户参考，但不再作为独立命令暴露
 
 ---
 
-*DevFlow v2.0 — 单一入口，自动隔离，闭环管理。*
+*DevFlow v2.1 — 单一入口，按阶段推进，闭环管理。*

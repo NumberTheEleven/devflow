@@ -2,7 +2,7 @@
   "feature": "verify-layered",
   "phase": "completed",
   "created_at": "2026-06-09T12:00:00+08:00",
-  "version": "2.0",
+  "version": "2.1",
   "checkpoints": {
     "clarify": "done",
     "breakdown": "done",
