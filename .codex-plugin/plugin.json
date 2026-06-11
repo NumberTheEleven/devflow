@@ -14,7 +14,7 @@
     "testing",
     "verification"
   ],
-  "skills": "./skills/devflow/",
+  "skills": "./skills/",
   "interface": {
     "displayName": "DevFlow",
     "shortDescription": "AI dev workflow: clarify -> breakdown -> blueprint -> implement -> verify",
