@@ -1,11 +1,11 @@
 ---
 name: devflow
-description: DevFlow v2.1 — AI 开发规范流程，单一入口，按阶段推进完整开发流程
+description: DevFlow v2.2 — AI 开发规范流程，单一入口，按阶段推进完整开发流程。新增 AI 视觉审查：通过 Playwright 截图 + AI 视觉分析捕获 UI 重叠、遮挡、溢出、截断等前端展示问题。
 argument-hint: [模糊需求描述]
 allowed-tools: [Read, Write, Glob, Grep, Bash, Edit, Agent, TaskCreate, WebSearch, WebFetch, LSP, Skill]
 ---
 
-# /devflow — DevFlow v2.1
+# /devflow — DevFlow v2.2
 
 ## 流程总览
 
