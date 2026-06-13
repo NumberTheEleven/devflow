@@ -3,124 +3,109 @@
 > 生成时间: 2026-06-13
 > 来源: /devflow — 编码实现阶段
 > 基于: devflow/design.md, devflow/requirements.md
+> Feature: verify-visual-ai-detection
 
-## T-001: 翻译 clarify Skill
+## T-001: 更新 verify Skill frontmatter 并增加 AI 视觉审查总览
 
 **状态:** 已完成
-**覆盖:** R-002（翻译 clarify Skill）
+**覆盖:** R-001
 **依赖:** 无
 **复杂度:** 低
 **涉及文件:**
-- `skills/clarify/_SKILL.md` — 全文中文化
+- `skills/verify/_SKILL.md` — 在 `allowed-tools` 中新增 `browser_take_screenshot`、`browser_evaluate`；在流程概述处增加 AI 视觉审查机制说明
 
-**描述:** 将 clarify Skill 的说明文字、章节标题、流程描述、示例输出翻译成中文。保留 frontmatter 字段名、工具名、代码片段、文件路径为英文。
-
----
-
-## T-002: 翻译 breakdown Skill
-
-**状态:** 已完成
-**覆盖:** R-003（翻译 breakdown Skill）
-**依赖:** 无
-**复杂度:** 低
-**涉及文件:**
-- `skills/breakdown/_SKILL.md` — 全文中文化
-
-**描述:** 将 breakdown Skill 的说明文字、章节标题、流程描述、输出模板示例翻译成中文。保留工具名、代码片段、文件路径为英文。
+**描述:** 让 verify Skill 具备调用 Playwright 截图与执行 JS 的权限，并在开篇明确：仅当 TC 涉及前端/视觉/布局时才启用 AI 视觉审查，AI 负责识别重叠、遮挡、溢出、截断、错位等明显视觉缺陷。
 
 ---
 
-## T-003: 翻译 blueprint Skill
+## T-002: 在 L1 中新增视觉烟雾扫描步骤
 
 **状态:** 已完成
-**覆盖:** R-004（翻译 blueprint Skill）
-**依赖:** 无
-**复杂度:** 低
-**涉及文件:**
-- `skills/blueprint/_SKILL.md` — 全文中文化
-
-**描述:** 将 blueprint Skill 的说明文字、章节标题、流程描述、Handoff 文案翻译成中文。保留 Mermaid 语法、工具名、文件路径为英文。
-
----
-
-## T-004: 翻译 discover Skill
-
-**状态:** 已完成
-**覆盖:** R-005（翻译 discover Skill）
-**依赖:** 无
+**覆盖:** R-002
+**依赖:** T-001
 **复杂度:** 中
 **涉及文件:**
-- `skills/discover/_SKILL.md` — 全文中文化
+- `skills/verify/_SKILL.md` — 在 L1 章节中插入“视觉烟雾扫描”子步骤
 
-**描述:** 将 discover Skill 的说明文字、章节标题、流程描述、优化分类标签翻译成中文。为 Performance / Architecture / Maintainability 等分类提供中文对应。保留工具名、代码片段、文件路径为英文。
+**描述:** 对路由到 L1 且含视觉/布局关键词的 TC，在页面加载后使用 `browser_take_screenshot` 截图（默认全页），由 AI 视觉分析检查明显异常，结果汇入 verification-log.md 的“视觉问题清单”。
 
 ---
 
-## T-005: 翻译 implement Skill
+## T-003: 在 L2 中新增交互截图分析步骤
 
 **状态:** 已完成
-**覆盖:** R-006（翻译 implement Skill）
-**依赖:** 无
+**覆盖:** R-003
+**依赖:** T-001
 **复杂度:** 中
 **涉及文件:**
-- `skills/implement/_SKILL.md` — 全文中文化
+- `skills/verify/_SKILL.md` — 在 L2 章节中插入“交互截图分析”子步骤
 
-**描述:** 将 implement Skill 的说明文字、章节标题、流程描述、Production-Grade Baseline 段落翻译成中文。保留代码片段、工具名、文件路径为英文。
+**描述:** 对路由到 L2 的交互类 TC，在执行关键动作前后分别截图，由 AI 分析视觉变化是否符合预期（弹窗完整显示、无被导航栏/遮罩遮挡、下拉菜单未截断等）。异常结果可标记 fail 或降级 L3。
 
 ---
 
-## T-006: 翻译 verify Skill
+## T-004: 增加程序化布局断言作为补充
 
 **状态:** 已完成
-**覆盖:** R-007（翻译 verify Skill）
-**依赖:** 无
-**复杂度:** 高
+**覆盖:** R-004
+**依赖:** T-001
+**复杂度:** 中
 **涉及文件:**
-- `skills/verify/_SKILL.md` — 全文中文化
+- `skills/verify/_SKILL.md` — 新增“程序化布局断言”小节
 
-**描述:** 将 verify Skill 的说明文字、章节标题、L1/L2/L3 流程描述、输出报告模板翻译成中文。路由关键词表保持中文。保留 Playwright API、工具名、文件路径为英文。
+**描述:** 定义可见元素互相重叠、元素超出可视区域、文字/内容被容器截断三种通用断言。在 L1/L2 中作为 AI 视觉分析的前置或并行步骤执行，结果同样汇入“视觉问题清单”。
 
 ---
 
-## T-007: 更新 devflow 入口 Skill
+## T-005: 更新 TC 路由规则
 
 **状态:** 已完成
-**覆盖:** R-008（更新 devflow 入口 Skill）
+**覆盖:** R-005
 **依赖:** 无
 **复杂度:** 低
 **涉及文件:**
-- `skills/devflow/SKILL.md` — 补齐剩余英文段落的中文翻译
+- `skills/verify/_SKILL.md` — 修改“TC 路由引擎”中的关键词表和默认层级表
 
-**描述:** `skills/devflow/SKILL.md` 主体已是中文，检查并补齐剩余英文说明文字。保留 JSON 示例、文件路径、工具名为英文。
+**描述:** 将“重叠、遮挡、覆盖、溢出、截断、布局、错位、白屏、闪烁”等视觉/布局类关键词映射到 L1 或 L2；保留“美观、流畅、体验、动画、权限、角色”等主观/权限类关键词在 L3。
 
 ---
 
-## T-008: 统一校对与术语一致性检查
+## T-006: 在验证报告模板中新增视觉问题清单
 
 **状态:** 已完成
-**覆盖:** R-009（统一校对与术语一致性检查）
-**依赖:** T-001, T-002, T-003, T-004, T-005, T-006, T-007
+**覆盖:** R-006
+**依赖:** T-002, T-003, T-004
 **复杂度:** 中
 **涉及文件:**
-- `skills/*/_SKILL.md`
-- `skills/devflow/SKILL.md`
-- `devflow/design.md` — 术语对照表
+- `skills/verify/_SKILL.md` — 在“验证报告”章节的示例模板中新增“视觉问题清单”
 
-**描述:** 对照设计文档中的术语对照表，检查所有 Skill 文件的术语翻译一致性、章节风格统一性、输出模板格式统一性。修复不一致之处。已统一 argument-hint 为中文、Handoff 章节为"交接"、智能回滚章节为"智能回滚意识"。
+**描述:** 在 verification-log.md 模板中增加 Visual Issue Registry 章节，统一汇总来自 L1 视觉烟雾扫描、L2 交互截图分析、程序化断言的问题。每条问题包含来源 TC/路由、问题描述、截图证据、严重程度、建议修复阶段。
 
 ---
 
-## T-009: 验证 Skill 执行不中断
+## T-007: 更新 test-cases template 增加视觉 TC 示例
 
 **状态:** 已完成
-**覆盖:** R-010（验证 Skill 执行不中断）
-**依赖:** T-001, T-002, T-003, T-004, T-005, T-006, T-007
+**覆盖:** R-007
+**依赖:** T-005
 **复杂度:** 低
 **涉及文件:**
-- `skills/*/_SKILL.md`
-- `skills/devflow/SKILL.md`
+- `skills/blueprint/references/test-cases-template.md` — 新增视觉相关 TC 示例
 
-**描述:** 检查所有 Skill 文件的 frontmatter 格式、`allowed-tools` 列表、代码片段、文件路径是否保持原样。确认 Markdown 结构未因翻译破坏。Python 脚本验证通过。
+**描述:** 在测试用例模板中补充可被 AI 视觉分析捕获的示例：页面加载无视觉异常（L1）、弹窗打开后完整可见（L2）、响应式布局无元素重叠（L1/L2）。
+
+---
+
+## T-008: 更新智能回滚路径
+
+**状态:** 已完成
+**覆盖:** R-001, R-002, R-003, R-004
+**依赖:** T-002, T-003, T-004
+**复杂度:** 低
+**涉及文件:**
+- `skills/verify/_SKILL.md` — 在“智能回滚意识”表格中新增视觉问题类别
+
+**描述:** 为视觉烟雾扫描失败、交互截图分析失败、程序化布局断言失败补充对应的回滚阶段建议（通常为 implement 阶段修复 UI，必要时退回 blueprint 重新审视设计）。
 
 ---
 
