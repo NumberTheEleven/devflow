@@ -1,105 +1,105 @@
 ---
 name: implement
-description: Execute implementation from the blueprint. First breaks down into numbered development tasks (T-001...), creates technical architecture diagrams (UML/swimlane/state machine), then dispatches parallel sub-agents for independent tasks and sequential TDD for dependent ones.
-argument-hint: [implementation-notes]
+description: 根据蓝图执行实现。首先将工作拆分为编号开发任务（T-001...），创建技术架构图（UML/泳道/状态机），然后为无依赖任务并行调度子代理，为有依赖任务顺序执行 TDD。
+argument-hint: [实现备注]
 allowed-tools: [Read, Write, Glob, Grep, Bash, Edit, Agent, TaskCreate, WebSearch]
 ---
 
-# /devflow:implement — Implementation
+# /devflow:implement — 实现阶段
 
-## When to Use
+## 使用时机
 
-The blueprint is ready (`devflow/design.md` and `devflow/test-cases.md` exist). You need to:
-1. Break down into development tasks with file scoping
-2. Create technical architecture documentation
-3. Execute coding with sub-agents
+蓝图已就绪（`devflow/design.md` 与 `devflow/test-cases.md` 已存在）。你需要：
+1. 将蓝图拆分为带文件范围的开发任务
+2. 创建技术架构文档
+3. 通过子代理执行编码
 
-You can also start here directly if you have an existing design.
+如果你已有现成设计，也可以直接从本阶段开始。
 
-## Process
+## 流程
 
-### Step 1: Load Context
+### 步骤 1：加载上下文
 
-Read all existing DevFlow files:
+读取所有现有的 DevFlow 文件：
 - `devflow/requirements.md`
 - `devflow/design.md`
 - `devflow/test-cases.md`
 
-If none exist, ask user for context or suggest starting from an earlier phase.
+若以上文件均不存在，请向用户询问上下文，或建议从更早阶段开始。
 
-### Step 2: Task Breakdown (FIRST — Persist)
+### 步骤 2：任务拆分（首要工作 — 持久化）
 
-Break the blueprint into concrete development tasks:
+将蓝图拆分为具体的开发任务：
 
-- Each task gets ID: T-001, T-002, ...
-- Each maps to requirement(s): R-xxx
-- Identify dependencies between tasks
-- Estimate complexity (low/medium/high)
-- List likely files/modules affected
-- Mark which tasks have NO dependencies (can be parallelized)
+- 每个任务分配 ID：T-001、T-002、…
+- 每个任务映射到对应需求：R-xxx
+- 识别任务之间的依赖关系
+- 评估复杂度（低 / 中 / 高）
+- 列出可能涉及的文件 / 模块
+- 标记哪些任务无依赖（可并行化）
 
-Present the task list. Ask user to confirm scope and file targeting.
+展示任务列表，请用户确认范围与文件目标。
 
-Write to `devflow/tasks.md` using the template format.
+使用模板格式写入 `devflow/tasks.md`。
 
-### Step 3: Technical Architecture Documentation
+### 步骤 3：技术架构文档
 
-Create appropriate technical diagrams in Mermaid format:
+使用 Mermaid 格式创建适当的技术图表：
 
-- **Data flow** → flowchart or data flow diagram
-- **Multi-actor processes** → swimlane diagram
-- **State changes** → state machine diagram
-- **Entity relationships** → ER diagram
-- **API design** → sequence diagram
+- **数据流** → 流程图或数据流图
+- **多角色流程** → 泳道图（swimlane diagram）
+- **状态变化** → 状态机图（state machine diagram）
+- **实体关系** → ER 图
+- **API 设计** → 时序图（sequence diagram）
 
-Choose the diagram type(s) that best represent the technical design. Include in the architecture section of the conversation.
+选择最能代表技术设计的图表类型，在对话中的架构章节呈现。
 
-### Step 4: Production-Grade Baseline (CRITICAL)
+### 步骤 4：生产级基线（Production-Grade Baseline，关键步骤）
 
-**Default assumption: Every implementation targets production quality.** AI tends to produce demo-level code (hardcoded data, missing error states, no edge case handling) unless explicitly told otherwise. Before dispatching ANY task, establish this baseline:
+**默认假设：所有实现都以生产质量为目标。** 除非明确告知，否则 AI 倾向于生成演示级代码（硬编码数据、缺少错误状态、无边界处理）。在分派任何任务之前，先建立以下基线：
 
-Every piece of code must satisfy:
-- **Error handling:** Every async operation, API call, file I/O, and user input path has explicit error handling. Errors are surfaced to the user in human-readable form, not swallowed or console-logged.
-- **Edge cases:** Null/empty/undefined states are handled explicitly. Loading, empty, error, and success states are all represented in the UI. Boundary conditions (max length, timeout, rate limit) are handled.
-- **Data integrity:** No hardcoded magic values, no fake/stub data in production paths. Configuration comes from environment variables or config files. Database queries have proper constraints and indexes.
-- **UI completeness:** Every interactive element has hover, focus, disabled, and active states. Forms have validation feedback. Destructive actions have confirmation. Empty states have helpful guidance, not blank screens.
-- **Observability:** Key operations are logged with enough context to debug in production. Errors include stack traces or diagnostic information.
-- **Security:** User input is validated and sanitized. SQL queries use parameterized statements. Sensitive data is never logged or exposed client-side. Authentication and authorization checks are in place.
+每段代码必须满足：
+- **错误处理：** 每个异步操作、API 调用、文件 I/O 及用户输入路径都必须有显式错误处理。错误应以人类可读的方式呈现给用户，不得吞掉或仅通过 console.log 输出。
+- **边界情况（Edge cases）：** 显式处理 Null / 空值 / undefined 状态。UI 中必须体现加载、空态、错误和成功四种状态。边界条件（最大长度、超时、速率限制）必须处理。
+- **数据完整性：** 禁止硬编码魔法值，禁止在生产路径中使用假数据 / 桩数据（stub data）。配置应来自环境变量或配置文件。数据库查询需具备 proper 约束和索引。
+- **UI 完整性：** 每个交互元素都必须具备 hover、focus、disabled 和 active 状态。表单需有验证反馈。破坏性操作需确认。空态应提供有用引导，而非空白屏幕。
+- **可观测性：** 关键操作需记录足够上下文以便生产环境排错。错误应包含堆栈跟踪或诊断信息。
+- **安全性：** 用户输入需验证并消毒（sanitize）。SQL 查询使用参数化语句。敏感数据不得记录或暴露到客户端。身份验证与授权检查必须到位。
 
-**This baseline applies to ALL implementation tasks.** Even if the user says "just a quick prototype" or "simple demo," default to production quality for the parts that ARE implemented. A prototype with solid foundations is better than one that needs a full rewrite.
+**此基线适用于所有实现任务。** 即使用户说“先做个快速原型”或“简单演示”，对于已实现的部分也应默认采用生产级质量。一个基础扎实的原型远胜于需要全面重写的原型。
 
-### Step 5: Execute Tasks
+### 步骤 5：执行任务
 
-**Independent tasks (no dependencies):**
-- Dispatch in parallel using sub-agents
-- Each sub-agent gets: full task description, affected files, coding standards, AND the Production-Grade Baseline from Step 4
-- Each sub-agent follows TDD: write failing test → implement → verify → commit
+**独立任务（无依赖）：**
+- 使用子代理并行分派
+- 每个子代理获得：完整任务描述、受影响文件、编码标准，以及步骤 4 的生产级基线
+- 每个子代理遵循 TDD（测试驱动开发）：编写失败测试 → 实现 → 验证 → 提交
 
-**Dependent tasks (sequential dependencies):**
-- Execute in dependency order
-- Each task: TDD cycle → code review → commit
-- Wait for dependencies to complete before starting
+**依赖任务（顺序依赖）：**
+- 按依赖顺序执行
+- 每个任务：TDD 循环 → 代码审查 → 提交
+- 等待依赖完成后方可启动后续任务
 
-**Per-task quality gates:**
-- TDD: test first, verify it fails, implement, verify it passes
-- Production-grade check: verify the implementation satisfies the Step 4 baseline (error handling, edge cases, UI completeness, etc.)
-- Code review: self-review the diff before committing
-- Commit with descriptive message referencing T-xxx and R-xxx
+**每项任务的质量门禁：**
+- TDD：先写测试，确认失败，再实现，确认通过
+- 生产级检查：验证实现满足步骤 4 基线（错误处理、边界情况、UI 完整性等）
+- 代码审查：提交前自我审查 diff
+- 提交信息需具描述性，并引用 T-xxx 与 R-xxx
 
-### Step 6: Track Progress
+### 步骤 6：跟踪进度
 
-Update `devflow/tasks.md` status fields as tasks complete:
+任务完成后更新 `devflow/tasks.md` 的状态字段：
 - `pending` → `in_progress` → `done`
 
-Report progress after each task.
+每完成一个任务后报告进度。
 
-## Handoff
+## 交接
 
-After all tasks complete:
+所有任务完成后：
 
-> "Implementation complete. All T-xxx tasks done. Next: /devflow:verify to run through the test case checklist and verify against requirements."
+> “实现完成。所有 T-xxx 任务已结束。下一步：执行 /devflow:verify，按测试用例清单运行并验证是否符合需求。”
 
-## Smart Rollback Awareness
+## 智能回滚意识
 
-- If user identifies an issue: determine if it's a task-level bug (re-run that task) or a design-level issue (suggest going back to `/devflow:blueprint`)
-- If tasks.md needs updating: modify it and flag affected completed tasks for re-work
+- 若用户指出问题：判断是任务级缺陷（重新执行该任务）还是设计级问题（建议回到 `/devflow:blueprint`）
+- 若 `tasks.md` 需要更新：修改后标记受影响的已完成任务以便返工

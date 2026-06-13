@@ -1,111 +1,111 @@
 ---
 name: discover
-description: Scan the current project for optimization opportunities when you have no specific requirement in mind. Discover improvement areas in performance, architecture, maintainability, or feature gaps.
-argument-hint: [project-path]
+description: 当没有特定需求时，扫描当前项目以寻找优化机会。发现性能、架构、可维护性或功能缺失方面的改进空间。
+argument-hint: [项目路径]
 allowed-tools: [Read, Glob, Grep, Bash, TaskCreate]
 ---
 
-# /devflow:discover — Project Discovery
+# /devflow:discover — 项目发现
 
-## When to Use
+## 使用场景
 
-You have NO specific requirement or task in mind. You want to find out what could be improved in the current project. This skill scans the codebase and generates a prioritized list of optimization opportunities.
+你没有任何具体的需求或任务。你想了解当前项目有哪些可以改进的地方。该 skill 会扫描代码库并生成一份按优先级排序的优化机会列表。
 
-**This skill is invoked directly by the user.** Do NOT auto-trigger.
+**此 skill 由用户直接调用。** 请勿自动触发。
 
-## Process
+## 流程
 
-### Step 1: Understand the Project
+### 步骤 1：了解项目
 
-If `[project-path]` is provided, scope all scanning to that directory. Otherwise use the current working directory.
+如果提供了 `[project-path]`，则将所有扫描范围限定在该目录下。否则使用当前工作目录。
 
-Read key project files to understand structure:
-- `package.json` / `pyproject.toml` / `go.mod` / `Cargo.toml` / `build.gradle` (whichever exists)
-- `README.md` or `CONTRIBUTING.md`
-- Top-level directory structure
+阅读关键项目文件以了解结构：
+- `package.json` / `pyproject.toml` / `go.mod` / `Cargo.toml` / `build.gradle`（存在哪个就读哪个）
+- `README.md` 或 `CONTRIBUTING.md`
+- 顶层目录结构
 
-### Step 2: Scan for Opportunities
+### 步骤 2：扫描机会
 
-Run these analyses:
+运行以下分析：
 
-**Code Quality:**
-- Find large files (>500 lines) using Glob to locate source files, then check line counts
-- Find files with high complexity: look for deeply nested `if`/`for`/`while` blocks, functions exceeding ~50 lines, excessive branching
+**代码质量：**
+- 使用 Glob 查找源文件，然后检查行数，找出大文件（>500 行）
+- 查找高复杂度文件：寻找深层嵌套的 `if`/`for`/`while` 块、超过约 50 行的函数、过度分支
 
-**Architecture:**
-- Identify circular dependencies or tightly coupled modules
-- Check for missing separation of concerns (e.g., business logic in UI files)
-- Look for duplicated code patterns across files
+**架构（Architecture）：**
+- 识别循环依赖或紧耦合模块
+- 检查是否缺少关注点分离（例如，业务逻辑写在 UI 文件中）
+- 查找跨文件重复的代码模式
 
-**Maintainability:**
-- Missing tests: compare `src/` files against `test/` or `__tests__/` files
-- Missing or outdated documentation
-- TODO/FIXME/HACK comments: use the Grep tool to search for `TODO|FIXME|HACK` across source files
-- Deprecated API usage
+**可维护性（Maintainability）：**
+- 缺失测试：将 `src/` 文件与 `test/` 或 `__tests__/` 文件进行对比
+- 缺失或过时的文档
+- TODO/FIXME/HACK 注释：使用 Grep 工具在源文件中搜索 `TODO|FIXME|HACK`
+- 已弃用的 API 使用
 
-**Performance:**
-- N+1 query patterns
-- Missing caching layers
-- Synchronous operations that could be parallelized
+**性能（Performance）：**
+- N+1 查询模式
+- 缺失缓存层
+- 可并行化的同步操作
 
-**Security:**
-- Hardcoded secrets, tokens, or credentials in source files
-- Outdated dependencies with known CVEs (check dependency files)
-- Unsafe input handling or missing sanitization
+**安全（Security）：**
+- 源代码文件中硬编码的密钥、令牌或凭证
+- 存在已知 CVE 的过时依赖（检查依赖文件）
+- 不安全的输入处理或缺失的清理
 
-**Feature Gaps:**
-- Missing error handling or edge case coverage
-- Missing input validation
-- Missing logging/observability
+**功能缺失（Feature Gap）：**
+- 缺失的错误处理或边界情况覆盖
+- 缺失的输入校验
+- 缺失的日志/可观测性
 
-**Demo Smells (patterns that indicate demo-level rather than production code):**
-- Hardcoded mock data or API responses instead of real data sources
-- Console.log instead of proper logging
-- Missing loading, empty, and error states in UI
-- No error boundaries or global error handling
-- Click handlers without loading/disabled states (no debounce on submissions)
-- Hardcoded URLs, keys, or secrets in source files
-- No form validation or sanitization
-- Comments like "TODO: implement this later" on critical paths
-- Static/read-only UI with no user interaction flow
-- Missing confirmation dialogs on destructive actions
+**演示代码异味（Demo Smells，表明代码处于演示级别而非生产级别）：**
+- 硬编码的模拟数据或 API 响应，而非真实数据源
+- 使用 console.log 而非 proper logging（ proper logging）
+- UI 中缺失 loading、empty 和 error 状态
+- 没有 error boundaries 或全局错误处理
+- 点击处理函数没有 loading/disabled 状态（提交没有防抖）
+- 源代码文件中硬编码的 URL、密钥或秘密
+- 没有表单校验或清理
+- 关键路径上有 "TODO: implement this later" 之类的注释
+- 静态/只读 UI，没有用户交互流程
+- 破坏性操作缺少确认对话框
 
-### Step 3: Generate Prioritized Report
+### 步骤 3：生成优先级报告
 
-Format the output as a structured report:
+将输出格式化为结构化报告：
 
 ```markdown
-## Project Optimization Opportunities
+## 项目优化机会
 
-### Critical (P0)
-- [ ] **[Category]** Description of issue. Affected files: `path/file.ts`. Suggested fix: ...
+### 紧急（P0）
+- [ ] **[Category（分类）]** 问题描述。受影响文件：`path/file.ts`。建议修复：...
 
-### High (P1)
+### 高优先级（P1）
 - [ ] ...
 
-### Medium (P2)
+### 中优先级（P2）
 - [ ] ...
 
-### Low (P3)
+### 低优先级（P3）
 - [ ] ...
 ```
 
-Each item must include:
-- Priority (P0-P3)
-- Category (Performance / Architecture / Maintainability / Feature Gap / Security)
-- Clear description of the problem
-- Specific file paths affected
-- Concrete suggested approach to fix
+每个条目必须包含：
+- 优先级（P0-P3）
+- 分类（Performance（性能）/ Architecture（架构）/ Maintainability（可维护性）/ Feature Gap（功能缺失）/ Security（安全））
+- 问题清晰描述
+- 受影响的具体文件路径
+- 具体的修复建议
 
-### Step 4: Ask User to Choose
+### 步骤 4：请用户选择
 
-After presenting the report, ask the user to select one or more items to pursue. Then suggest:
+在展示报告后，请用户选择一个或多个项目来推进。然后建议：
 
-> "Choose an item to work on. I recommend starting from the P0 items. Once selected, we'll use /devflow:clarify to expand on the requirement."
+> "选择一个项目来开始。我建议从 P0 项目开始。选定后，我们将使用 /devflow:clarify 来展开需求。"
 
-## Handoff
+## 交接
 
-When the user selects an item, suggest:
-- `/devflow:clarify` — to expand the selected optimization into a clear requirement
+当用户选定某个项目时，建议：
+- `/devflow:clarify` — 将选定的优化项展开为清晰的需求
 
-Do NOT automatically invoke clarify. Wait for the user to confirm.
+不要自动调用 clarify。等待用户确认。

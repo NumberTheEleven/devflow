@@ -1,91 +1,91 @@
 ---
 name: verify
-description: Verify implementation against the test case checklist (TC-xxx) and requirements (R-xxx). Uses a three-layer approach — L1 smoke scan (console errors, network failures, page crashes, DOM structure), L2 interaction verification (real user operations via Playwright MCP), L3 structured manual verification (evidence-driven). Failed items trigger smart rollback. Verification depth scoring exposes false positives from shallow checks.
-argument-hint: [verification-scope]
+description: 根据测试用例清单（TC-xxx）和需求（R-xxx）验证实现。采用三层验证方法 — L1 烟雾扫描（控制台错误、网络失败、页面崩溃、DOM 结构）、L2 交互验证（通过 Playwright MCP 执行真实用户操作）、L3 结构化手工验证（基于证据）。失败项触发智能回滚。验证深度评分用于暴露浅层检查的假阳性。
+argument-hint: [验证范围]
 allowed-tools: [Read, Glob, Grep, Bash, Edit, TaskCreate, browser_navigate, browser_console_messages, browser_network_requests, browser_snapshot, browser_scroll, browser_click, browser_type, browser_wait_for, browser_fill_form, browser_select_option, browser_press_key, browser_hover]
 ---
 
-# /devflow:verify — Verification
+# /devflow:verify — 验证
 
-## When to Use
+## 何时使用
 
-Implementation is complete. All development tasks in `devflow/tasks.md` are marked done. You need to systematically verify everything works as specified.
+实现已完成。`devflow/tasks.md` 中的所有开发任务均已标记为完成。你需要系统地验证一切是否按规范工作。
 
-This skill uses a **three-layer verification** approach:
+本技能采用**三层验证**方法：
 
-| Layer | What It Checks | Method | Depth |
-|-------|---------------|--------|-------|
-| **L1: Smoke Scan** | Infrastructure health — console errors, HTTP failures, page crashes, missing elements | Playwright automated scan of all routes | Surface — checks that pages "don't break" |
-| **L2: Interaction** | Core user operations — clicking buttons, filling forms, submitting, navigating | Playwright MCP executes real user actions, records DOM changes | Functional — checks that features "actually work" |
-| **L3: Manual** | Subjective judgment — visual quality, permission logic, animation feel, multi-role scenarios | Structured protocol with evidence requirements | Deep — checks what a human user would notice |
+| 层级 | 检查内容 | 方法 | 深度 |
+|------|----------|------|------|
+| **L1：烟雾扫描** | 基础设施健康 — 控制台错误、HTTP 失败、页面崩溃、缺失元素 | 对所有路由进行 Playwright 自动化扫描 | 表面 — 检查页面“不崩溃” |
+| **L2：交互验证** | 核心用户操作 — 点击按钮、填写表单、提交、导航 | Playwright MCP 执行真实用户操作，记录 DOM 变化 | 功能 — 检查功能“真正可用” |
+| **L3：手工验证** | 主观判断 — 视觉质量、权限逻辑、动画体验、多角色场景 | 结构化协议，附带证据要求 | 深度 — 检查人类用户会注意到的问题 |
 
-**Key principle:** L1 passing alone does NOT mean "verification complete." Only L2 actually exercises functionality. The final report includes a **verification depth score** that exposes shallow verification.
+**关键原则：** L1 通过**不代表**“验证完成”。只有 L2 真正验证了功能。最终报告包含一个**验证深度评分**，用于暴露浅层验证。
 
 ---
 
-## Process
+## 流程
 
-### Step 1: Load Context & Check Capabilities
+### 步骤 1：加载上下文并检查能力
 
-Read all DevFlow state files:
-- `devflow/requirements.md` — what we promised to build
-- `devflow/design.md` — the spec and scope
-- `devflow/tasks.md` — what was implemented
-- `devflow/test-cases.md` — the verification checklist
+读取所有 DevFlow 状态文件：
+- `devflow/requirements.md` — 我们承诺构建的内容
+- `devflow/design.md` — 规格和范围
+- `devflow/tasks.md` — 已实现的内容
+- `devflow/test-cases.md` — 验证清单
 
-**Check Playwright MCP availability:**
+**检查 Playwright MCP 可用性：**
 
-Determine whether Playwright MCP tools are available. Check if `browser_navigate` is in the available tool list.
+判断 Playwright MCP 工具是否可用。检查可用工具列表中是否包含 `browser_navigate`。
 
-- **Playwright available + target URL known:** Proceed with full L1+L2+L3 pipeline.
-- **Playwright available but no target URL:** Ask the user for the base URL of the running application (e.g., `http://localhost:3000`). If the user cannot provide one, all TC routes to L3.
-- **Playwright NOT available:** Output:
+- **Playwright 可用 + 目标 URL 已知：** 执行完整的 L1+L2+L3 流水线。
+- **Playwright 可用但无目标 URL：** 询问用户运行中应用的 base URL（例如 `http://localhost:3000`）。如果用户无法提供，所有 TC 路由到 L3。
+- **Playwright 不可用：** 输出：
 
   > "Playwright MCP 不可用，L1 烟雾扫描和 L2 交互验证将全部降级到 L3 结构化手工验证。"
 
-  All TCs route to L3. The verification can still complete with full evidence requirements, just slower.
+  所有 TC 路由到 L3。验证仍可完成，只是速度较慢，且需满足完整的证据要求。
 
-**Important:** Even in full-manual mode, every TC must still meet the evidence requirements defined in L3. No "I checked it, it works" without proof.
+**重要：** 即使在全手工模式下，每条 TC 仍必须满足 L3 中定义的证据要求。不允许无凭据的“我检查过了，没问题”。
 
 ---
 
-### Step 2: TC Router Engine
+### 步骤 2：TC 路由引擎
 
-**This is the most critical step.** Before running any verification, classify every TC into the appropriate layer. Incorrect routing causes either false positives (interaction TC routed to L1) or wasted time (simple health TC routed to L3).
+**这是最关键的一步。** 在运行任何验证之前，将每条 TC 分类到适当的层级。错误的路由会导致假阳性（交互 TC 被路由到 L1）或浪费时间（简单健康检查 TC 被路由到 L3）。
 
-#### 2.1 Routing Rules
+#### 2.1 路由规则
 
-Parse every TC in `devflow/test-cases.md`. For each TC, extract its **type** field and scan its **title + steps** for keywords.
+解析 `devflow/test-cases.md` 中的每条 TC。对每条 TC，提取其 **type** 字段并扫描其 **标题 + 步骤** 中的关键词。
 
-**Keyword → Layer mapping:**
+**关键词 → 层级映射：**
 
-| Keywords in TC Content | Route To | Rationale |
-|------------------------|----------|-----------|
-| 不报错、控制台错误、网络请求、HTTP 状态码、页面加载、资源加载、白屏、崩溃、页面超时 | L1 | Static health check covers these |
-| 点击、输入、填写、提交、选择、上传、删除、编辑、创建、搜索、登录、注册、跳转、导航、返回、刷新 | L2 | Requires real interaction |
-| 权限、角色、动画、过渡、响应式、文案、样式、颜色、布局、流畅、视觉、美观、体验 | L3 | Requires human subjective judgment |
+| TC 内容中的关键词 | 路由到 | 理由 |
+|------------------|--------|------|
+| 不报错、控制台错误、网络请求、HTTP 状态码、页面加载、资源加载、白屏、崩溃、页面超时 | L1 | 静态健康检查即可覆盖 |
+| 点击、输入、填写、提交、选择、上传、删除、编辑、创建、搜索、登录、注册、跳转、导航、返回、刷新 | L2 | 需要真实交互 |
+| 权限、角色、动画、过渡、响应式、文案、样式、颜色、布局、流畅、视觉、美观、体验 | L3 | 需要人类主观判断 |
 
-**TC type → default layer (when keywords are ambiguous):**
+**TC type → 默认层级（关键词模糊时）：**
 
-| TC Type | Default Layer | Notes |
-|---------|---------------|-------|
-| 单元 | L1 | Code-level: check error output |
-| 集成 | L1 or L2 | Determined by keywords |
-| 端到端 | L2 | Simulates user workflow |
-| 手工 | L3 | Requires human judgment |
+| TC 类型 | 默认层级 | 说明 |
+|---------|----------|------|
+| 单元 | L1 | 代码级别：检查错误输出 |
+| 集成 | L1 或 L2 | 由关键词决定 |
+| 端到端 | L2 | 模拟用户工作流 |
+| 手工 | L3 | 需要人类判断 |
 
-#### 2.2 Routing Priority
+#### 2.2 路由优先级
 
-Apply rules in this order:
+按以下顺序应用规则：
 
-1. TC type = 端到端 AND content has interaction keywords → **L2**
-2. TC type = 手工 AND content has subjective keywords → **L3**
-3. TC content has L1 keywords AND NO L2/L3 keywords → **L1**
-4. Default → **L3** (better to verify manually than produce false positives)
+1. TC type = 端到端 且内容包含交互关键词 → **L2**
+2. TC type = 手工 且内容包含主观关键词 → **L3**
+3. TC 内容包含 L1 关键词 且不含 L2/L3 关键词 → **L1**
+4. 默认 → **L3**（宁可手工验证，也不要产生假阳性）
 
-#### 2.3 Present Routing Plan
+#### 2.3 呈现路由计划
 
-After classification, display the routing plan to the user:
+分类完成后，向用户展示路由计划：
 
 ```
 验证计划（共 N 条 TC）：
@@ -95,347 +95,347 @@ L2 交互验证（Y 条）：TC-002, TC-004, TC-008, ...
 L3 手工验证（Z 条）：TC-006, TC-007, TC-009, ...
 ```
 
-Ask: "路由计划如上。是否需要调整？[Y] 确认执行 / [调整 TC-xxx 从 X 层到 Y 层]"
+询问："路由计划如上。是否需要调整？[Y] 确认执行 / [调整 TC-xxx 从 X 层到 Y 层]"
 
-Record any user adjustments. Once confirmed, write the final routing plan to `devflow/verification-log.md` as the first section.
+记录用户的任何调整。确认后，将最终路由计划作为第一部分写入 `devflow/verification-log.md`。
 
 ---
 
-## L1: Smoke Scan
+## L1：烟雾扫描
 
-> L1 checks structural health: do pages load without errors? These checks are fast, broad, and catch runtime regressions. **L1 passing ≠ features work.** L1 only proves the page's infrastructure is healthy.
+> L1 检查结构健康：页面加载时是否报错？这些检查快速、广泛，能捕获运行时回归。**L1 通过 ≠ 功能正常。** L1 仅证明页面的基础设施健康。
 
-### Step 3: Discover Routes
+### 步骤 3：发现路由
 
-Determine all pages to scan:
+确定要扫描的所有页面：
 
-1. If the project has a route config file (e.g., `src/router/index.ts`, `pages/` directory, `app/` routes in Next.js), read it to extract the full list of routes.
-2. If no explicit route config exists, check `devflow/design.md` for mentioned pages, or ask the user:
-   > "需要扫描所有页面路由。应用有哪些主要路由？(如 /, /login, /dashboard, /settings)"
-3. Compile the final route list. Confirm with the user if the list looks complete.
+1. 如果项目有路由配置文件（例如 `src/router/index.ts`、`pages/` 目录、Next.js 的 `app/` 路由），读取它以提取完整路由列表。
+2. 如果没有显式路由配置，检查 `devflow/design.md` 中提到的页面，或询问用户：
+   > "需要扫描所有页面路由。应用有哪些主要路由？（如 /, /login, /dashboard, /settings）"
+3. 编译最终路由列表。如果列表看起来不完整，请与用户确认。
 
-### Step 4: Console Error Check (Zero-Tolerance)
+### 步骤 4：控制台错误检查（零容忍）
 
-**Covers:** TC routed to L1 with error/console keywords | **Maps to:** R-001
+**覆盖：** 路由到 L1 且含错误/控制台关键词的 TC | **映射到：** R-001
 
-For each route in the discovered list:
+对发现列表中的每个路由：
 
-1. Navigate to the page: `browser_navigate` to `<baseURL><route>`
-2. Wait 2 seconds for initial JS execution to settle
-3. Use `browser_console_messages` to collect all console output
-4. Filter for `console.error` level messages
+1. 导航到页面：`browser_navigate` 到 `<baseURL><route>`
+2. 等待 2 秒，让初始 JS 执行稳定
+3. 使用 `browser_console_messages` 收集所有控制台输出
+4. 过滤 `console.error` 级别消息
 
-**Default allowlist** (these are known-harmless and do NOT count as failures):
+**默认白名单**（这些已知无害，**不**算作失败）：
 - `/favicon.ico` — 404
-- Source map 404 errors (e.g., `*.map` — 404)
-- Chrome extension errors (errors originating from `chrome-extension://` URLs)
+- Source map 404 错误（例如 `*.map` — 404）
+- Chrome 扩展错误（来源为 `chrome-extension://` URL 的错误）
 
-**To customize the allowlist:** Edit the allowlist items above in this skill file. Add project-specific patterns (e.g., third-party script errors you cannot fix) with a comment explaining why.
+**自定义白名单：** 编辑本技能文件中的上述白名单项。添加项目特定的模式（例如你无法修复的第三方脚本错误），并附注释说明原因。
 
-**Judgment:**
-- Any console.error NOT in the allowlist → **FAIL**. Report: page URL, error message text, and line reference if available.
-- Zero console errors (or only allowlist matches) → **PASS**
+**判定：**
+- 任何不在白名单中的 console.error → **FAIL**。报告：页面 URL、错误消息文本，以及行号引用（如有）。
+- 零控制台错误（或仅匹配白名单） → **PASS**
 
-**Important:** Do NOT ignore warnings (`console.warn`). Report them as informational notes but do not fail on them. Only `console.error` triggers failure.
+**重要：** 不要忽略警告（`console.warn`）。将它们作为信息性备注报告，但不要因此失败。只有 `console.error` 触发失败。
 
-### Step 5: Network Request Health Check
+### 步骤 5：网络请求健康检查
 
-**Covers:** TC routed to L1 with network/HTTP keywords | **Maps to:** R-001
+**覆盖：** 路由到 L1 且含网络/HTTP 关键词的 TC | **映射到：** R-001
 
-For each route in the discovered list:
+对发现列表中的每个路由：
 
-1. Navigate to the page: `browser_navigate` to `<baseURL><route>`
-2. Use `browser_network_requests` to retrieve all network requests made by the page
-3. Filter for HTTP status codes >= 400
+1. 导航到页面：`browser_navigate` 到 `<baseURL><route>`
+2. 使用 `browser_network_requests` 检索页面发出的所有网络请求
+3. 过滤 HTTP 状态码 >= 400 的请求
 
-**Judgment:**
-- Any request returning 4xx or 5xx → **FAIL**. Report: failing URL, HTTP status code, and the page that triggered it.
-- All requests return 2xx/3xx → **PASS**
+**判定：**
+- 任何返回 4xx 或 5xx 的请求 → **FAIL**。报告：失败 URL、HTTP 状态码，以及触发它的页面。
+- 所有请求返回 2xx/3xx → **PASS**
 
-**Notes:**
-- A single page may trigger multiple failing requests. Report each one separately.
-- Distinguish between API calls (actionable failures) and static asset 404s (usually missing images/icons). Both are reported, but API 5xx carries higher severity in the final report.
+**备注：**
+- 单个页面可能触发多个失败请求。分别报告每一个。
+- 区分 API 调用（可操作的失败）和静态资源 404（通常是缺失图片/图标）。两者都报告，但 API 5xx 在最终报告中具有更高的严重性。
 
-### Step 6: Runtime Health Scan (Crash & White-Screen Detection)
+### 步骤 6：运行时健康扫描（崩溃与白屏检测）
 
-**Covers:** TC routed to L1 with crash/white-screen keywords | **Maps to:** R-001
+**覆盖：** 路由到 L1 且含崩溃/白屏关键词的 TC | **映射到：** R-001
 
-For each route in the discovered list:
+对发现列表中的每个路由：
 
-1. Navigate to the page: `browser_navigate` to `<baseURL><route>`
-2. Wait for the page to reach a stable state (loaded or network idle)
-3. Use `browser_snapshot` to capture the current DOM structure
-4. **White-screen check:** If the snapshot shows an empty or near-empty body (no visible text content, no interactive elements, no meaningful landmarks), flag as **potential white screen**.
-5. **Crash check:** If the snapshot returns an error or if the page title/body contains crash indicators (e.g., "Application error", "Something went wrong", "Cannot read properties of"), flag as **app crash**.
-6. **Scroll check:** Use `browser_scroll` to scroll down by one viewport height. Re-capture snapshot. Check that new lazy-loaded content appeared (DOM grew) or that no error was triggered by scrolling.
-7. Repeat scroll 2-3 times if the page has infinite-scroll indicators (load more buttons, skeleton loaders).
+1. 导航到页面：`browser_navigate` 到 `<baseURL><route>`
+2. 等待页面达到稳定状态（已加载或网络空闲）
+3. 使用 `browser_snapshot` 捕获当前 DOM 结构
+4. **白屏检查：** 如果快照显示 body 为空或接近为空（无可见文本内容、无交互元素、无有意义的 landmark），标记为**潜在白屏**。
+5. **崩溃检查：** 如果快照返回错误，或页面标题/body 包含崩溃指示词（例如 "Application error"、"Something went wrong"、"Cannot read properties of"），标记为**应用崩溃**。
+6. **滚动检查：** 使用 `browser_scroll` 向下滚动一个视口高度。重新捕获快照。检查新的懒加载内容是否出现（DOM 增长）或滚动是否未触发错误。
+7. 如果页面有无限滚动指示器（加载更多按钮、骨架屏），重复滚动 2-3 次。
 
-**Judgment:**
-- Page loads and has meaningful DOM content, no crash indicators, scroll works → **PASS**
-- White screen (empty DOM) → **FAIL** with severity HIGH
-- App crash (error message in DOM) → **FAIL** with severity CRITICAL
-- Scroll triggers JS error → **FAIL** with severity HIGH
-- Page times out (15s default) without loading → **WARNING** (not FAIL — may be environment-specific)
+**判定：**
+- 页面加载且有有意义的 DOM 内容，无崩溃指示词，滚动正常 → **PASS**
+- 白屏（空 DOM） → **FAIL**，严重性 HIGH
+- 应用崩溃（DOM 中有错误消息） → **FAIL**，严重性 CRITICAL
+- 滚动触发 JS 错误 → **FAIL**，严重性 HIGH
+- 页面超时（默认 15 秒）未加载 → **WARNING**（不是 FAIL — 可能是环境特定问题）
 
-### Step 7: Structured DOM Snapshot Assertions
+### 步骤 7：结构化 DOM 快照断言
 
-**Covers:** TC routed to L1 with element/structure keywords | **Maps to:** R-001
+**覆盖：** 路由到 L1 且含元素/结构关键词的 TC | **映射到：** R-001
 
-For key pages identified as critical (homepage, login, main dashboard, primary feature pages):
+对识别为关键的主要页面（首页、登录页、主仪表盘、主要功能页面）：
 
-1. Navigate to the page
-2. Use `browser_snapshot` to get the accessibility tree / semantic structure
-3. Verify that documented core UI elements exist in the snapshot:
-   - Check for elements mentioned in `devflow/design.md` or `devflow/requirements.md`
-   - Common checks: navigation bar, search input, submit buttons, main content area, footer
-4. Use **existence assertions** only (is the element present in the snapshot?), NOT exact text matching or CSS property checks.
+1. 导航到页面
+2. 使用 `browser_snapshot` 获取可访问性树 / 语义结构
+3. 验证文档化的核心 UI 元素存在于快照中：
+   - 检查 `devflow/design.md` 或 `devflow/requirements.md` 中提到的元素
+   - 常见检查：导航栏、搜索输入框、提交按钮、主内容区、页脚
+4. 仅使用**存在性断言**（元素是否存在于快照中？），**不**进行精确文本匹配或 CSS 属性检查。
 
-**Judgment:**
-- Core elements present in snapshot → **PASS**
-- Key element missing from snapshot → **FAIL**. Report which element was expected and which page was checked.
-- Note: minor UI text changes do NOT cause failure. This check is for structural completeness, not visual precision.
+**判定：**
+- 核心元素存在于快照中 → **PASS**
+- 关键元素缺失于快照中 → **FAIL**。报告预期元素及检查的页面。
+- 注意：细微的 UI 文本变化**不**导致失败。此检查针对结构完整性，而非视觉精确度。
 
-### Step 8: Aggregate L1 Results
+### 步骤 8：汇总 L1 结果
 
-After scanning all routes, compile the L1 summary:
+扫描所有路由后，编译 L1 摘要：
 
 ```markdown
-## L1: Smoke Scan Results
+## L1：烟雾扫描结果
 
-### Console Errors
-- /page-a: PASS (0 errors)
-- /page-b: FAIL — 2 console errors detected:
+### 控制台错误
+- /page-a: PASS（0 错误）
+- /page-b: FAIL — 检测到 2 条控制台错误：
   - "TypeError: Cannot read property 'name' of undefined" at app.js:142
   - "Failed to load resource: 500 /api/users"
 
-### Network Health
-- /page-a: PASS (all 2xx/3xx)
-- /page-b: FAIL — 1 abnormal request:
+### 网络健康
+- /page-a: PASS（全部 2xx/3xx）
+- /page-b: FAIL — 1 条异常请求：
   - GET /api/users → 500 Internal Server Error
 
-### Runtime Health
+### 运行时健康
 - /page-a: PASS
 - /page-b: PASS
-- /page-c: WARNING — page timed out after 15s
+- /page-c: WARNING — 页面在 15 秒后超时
 
-### DOM Snapshot
-- / (homepage): PASS — all core elements present
-- /login: PASS — login form, submit button present
+### DOM 快照
+- / (homepage): PASS — 所有核心元素存在
+- /login: PASS — 登录表单、提交按钮存在
 
-**L1 Summary:** X/Y pages smoke-scan clean. Z issues found (C console errors, N network failures, H health warnings, S snapshot gaps).
+**L1 摘要：** X/Y 页面烟雾扫描通过。发现 Z 个问题（C 条控制台错误，N 条网络失败，H 条健康警告，S 条快照缺失）。
 
 > ⚠️ L1 烟雾扫描仅检查页面基础设施是否正常（不报错、不崩溃、元素存在）。不代表业务功能验证通过。业务功能验证由 L2 和 L3 完成。
 ```
 
-Map each finding to a TC-xxx. L1 passing results mark their corresponding TCs as having L1 coverage. L1 failures flag TCs for attention.
+将每个发现映射到 TC-xxx。L1 通过结果标记其对应的 TC 为已有 L1 覆盖。L1 失败将 TC 标记为需关注。
 
 ---
 
-## L2: Interaction Verification
+## L2：交互验证
 
-> L2 is the critical new layer. It doesn't just check that a page loaded — it exercises real user actions and observes whether the page responds correctly. This is where most "verify passed but manually broken" issues are caught.
+> L2 是关键的新层级。它不仅检查页面是否加载 — 它还执行真实用户操作并观察页面是否正确响应。大多数“验证通过但手动测试损坏”的问题在此被捕获。
 
-### Step 9: Extract L2 TC Actions
+### 步骤 9：提取 L2 TC 动作
 
-From the routing plan, take all TCs routed to L2. For each TC:
+从路由计划中，取出所有路由到 L2 的 TC。对每条 TC：
 
-1. Parse the **步骤** field to extract action steps. Look for action verbs:
+1. 解析 **步骤** 字段以提取动作步骤。查找动作动词：
    - 点击 / click → `browser_click`
-   - 输入 / 填写 / type / fill → `browser_type` or `browser_fill_form`
+   - 输入 / 填写 / type / fill → `browser_type` 或 `browser_fill_form`
    - 选择 / select → `browser_select_option`
    - 等待 / wait → `browser_wait_for`
    - 导航 / 跳转 / navigate → `browser_navigate`
    - 悬停 / hover → `browser_hover`
    - 按键 / press → `browser_press_key`
 
-2. Build an action sequence for each TC. Each action is: `{tool, target, value, description}`.
+2. 为每条 TC 构建动作序列。每个动作为：`{tool, target, value, description}`。
 
-3. If a TC has more than 5 steps, split it into sub-sequences with intermediate checkpoints.
+3. 如果 TC 超过 5 个步骤，将其拆分为子序列并设置中间检查点。
 
-**Target resolution:** When a step says "点击提交按钮" but doesn't specify an exact selector, use `browser_snapshot` first to find a matching element (button with "提交" text or submit type), then use that element reference.
+**目标解析：** 当步骤说“点击提交按钮”但未指定精确选择器时，先使用 `browser_snapshot` 查找匹配元素（带有“提交”文本或 submit 类型的按钮），然后使用该元素引用。
 
-### Step 10: Execute Interaction + Record Trace
+### 步骤 10：执行交互 + 记录追踪
 
-For each L2 TC:
+对每条 L2 TC：
 
-1. **Pre-action snapshot:** Use `browser_snapshot` to capture the DOM state before the action.
-2. **Execute action:** Call the appropriate Playwright tool.
-3. **Wait for response:** Use `browser_wait_for` to wait for either DOM change or a short time (1-2s for instant feedback, up to 5s for async operations).
-4. **Post-action snapshot:** Use `browser_snapshot` to capture the DOM state after the action.
-5. **Record interaction trace:** For each action step, write to `devflow/verification-log.md`:
-
-```markdown
-#### TC-xxx Step N: [action description]
-
-**操作:** navigate → /login
-**操作前 DOM 摘要:** [semantic elements visible before: button "登录", input "email", input "password"]
-**操作后 DOM 摘要:** [semantic elements visible after: same as before, page loaded]
-**DOM 变化:** 无结构性变化（页面初始加载）
-**结果:** ✅ 页面加载成功
-```
-
-For actions expected to change the DOM:
+1. **操作前快照：** 使用 `browser_snapshot` 捕获操作前的 DOM 状态。
+2. **执行操作：** 调用相应的 Playwright 工具。
+3. **等待响应：** 使用 `browser_wait_for` 等待 DOM 变化或短时间（即时反馈 1-2 秒，异步操作最多 5 秒）。
+4. **操作后快照：** 使用 `browser_snapshot` 捕获操作后的 DOM 状态。
+5. **记录交互追踪：** 对每个动作步骤，写入 `devflow/verification-log.md`：
 
 ```markdown
-#### TC-xxx Step N: [action description]
+#### TC-xxx 步骤 N：[动作描述]
 
-**操作:** click "提交" button (空表单)
-**操作前 DOM 摘要:** form with 3 inputs, 1 submit button
-**操作后 DOM 摘要:** form with 3 inputs, 1 submit button, NEW: 2x role="alert" with validation messages
-**DOM 变化:** +2 alert elements (表单校验错误提示)
-**结果:** ✅ 表单校验触发（验证了空表单会被拦截）
+**操作：** navigate → /login
+**操作前 DOM 摘要：** [操作前可见的语义元素：button "登录", input "email", input "password"]
+**操作后 DOM 摘要：** [操作后可见的语义元素：与操作前相同，页面已加载]
+**DOM 变化：** 无结构性变化（页面初始加载）
+**结果：** ✅ 页面加载成功
 ```
 
-### Step 11: DOM Change Judgment
+对预期会改变 DOM 的操作：
 
-**Do NOT rely on exact text content** (e.g., "请输入邮箱" vs "请输入电子邮件"). Instead, judge based on **semantic DOM structure changes**:
+```markdown
+#### TC-xxx 步骤 N：[动作描述]
 
-| Expected Behavior | What to Check |
-|------------------|---------------|
-| Form submitted successfully | Page URL changed OR new semantic elements appeared (e.g., success message, new page heading, redirect) |
-| Validation error shown | New elements with `role="alert"` or `alert` in snapshot appeared; form structure unchanged |
-| Navigation happened | URL changed OR page heading in snapshot changed |
-| Modal/dialog opened | New element with dialog/modal semantics appeared in snapshot |
-| Content loaded/refreshed | List/table element count changed; new text nodes appeared |
-| Button disabled during loading | Button element attribute changed to disabled |
+**操作：** click "提交" button（空表单）
+**操作前 DOM 摘要：** form with 3 inputs, 1 submit button
+**操作后 DOM 摘要：** form with 3 inputs, 1 submit button, NEW: 2x role="alert" with validation messages
+**DOM 变化：** +2 alert elements（表单校验错误提示）
+**结果：** ✅ 表单校验触发（验证了空表单会被拦截）
+```
 
-**Judgment per action:**
-- DOM changed in the semantically expected way → **✅ Action effective**
-- DOM did NOT change when it should have → **❌ Action ineffective** (FAIL)
-- DOM changed in an unexpected way (error page, redirect to wrong page) → **❌ Unexpected result** (FAIL)
-- Cannot determine (ambiguous change, dynamic content) → **⚠️ Uncertain** (flag for manual review in L3)
+### 步骤 11：DOM 变化判定
 
-### Step 12: Interaction Timeout & Side-Effect Guard
+**不要依赖精确文本内容**（例如 "请输入邮箱" vs "请输入电子邮件"）。而是基于**语义 DOM 结构变化**进行判定：
 
-**Timeout handling:**
-- Single action timeout: 30 seconds. If an action times out, mark as **❌ Timeout** and skip remaining steps for that TC.
-- Full TC timeout: 2 minutes. If a TC's total interaction chain exceeds this, mark as **⚠️ Incomplete** and note which steps weren't executed.
+| 预期行为 | 检查内容 |
+|----------|----------|
+| 表单提交成功 | 页面 URL 改变 或 出现新的语义元素（例如成功消息、新页面标题、重定向） |
+| 显示校验错误 | 快照中出现带有 `role="alert"` 或包含 `alert` 的新元素；表单结构不变 |
+| 发生导航 | URL 改变 或 快照中的页面标题改变 |
+| 模态框/对话框打开 | 快照中出现带有 dialog/modal 语义的新元素 |
+| 内容加载/刷新 | 列表/表格元素数量改变；出现新的文本节点 |
+| 加载期间按钮禁用 | 按钮元素属性变为 disabled |
 
-**Side-effect guard — check before L2 execution:**
-- If the TC involves **write operations** (创建/删除/修改/上传/提交订单/发送), do NOT auto-execute those steps. Instead:
-  1. Execute read-only steps (navigation, viewing) automatically
-  2. At the write step, pause and ask: "TC-xxx 包含写操作（[具体操作]）。是否继续自动执行？[Y] 执行 / [S] 跳过此步骤，手工验证 / [跳过整个 TC]"
-  3. If on a non-localhost URL (production/staging), warn more strongly.
-- This prevents accidental data modification in shared environments.
+**每个动作的判定：**
+- DOM 以语义预期的方式改变 → **✅ 动作有效**
+- DOM 应该改变但未改变 → **❌ 动作无效**（FAIL）
+- DOM 以意外方式改变（错误页面、重定向到错误页面） → **❌ 意外结果**（FAIL）
+- 无法判定（模糊变化、动态内容） → **⚠️ 不确定**（标记为 L3 人工复核）
 
-### Step 13: L2 Playwright Degradation
+### 步骤 12：交互超时与副作用防护
 
-If Playwright MCP tools are NOT available:
+**超时处理：**
+- 单个动作超时：30 秒。如果动作超时，标记为 **❌ 超时** 并跳过该 TC 的剩余步骤。
+- 完整 TC 超时：2 分钟。如果 TC 的总交互链超过此时间，标记为 **⚠️ 未完成** 并记录未执行的步骤。
+
+**副作用防护 — 执行 L2 前检查：**
+- 如果 TC 涉及**写操作**（创建/删除/修改/上传/提交订单/发送），**不要**自动执行这些步骤。而是：
+  1. 自动执行只读步骤（导航、查看）
+  2. 在写操作步骤暂停并询问："TC-xxx 包含写操作（[具体操作]）。是否继续自动执行？[Y] 执行 / [S] 跳过此步骤，手工验证 / [跳过整个 TC]"
+  3. 如果在非 localhost URL（生产/预发布环境）上，更强烈地警告。
+- 这防止在共享环境中意外修改数据。
+
+### 步骤 13：L2 Playwright 降级
+
+如果 Playwright MCP 工具不可用：
 
 > "Playwright MCP 不可用，L2 交互验证降级为手工引导模式。"
 
-For each L2 TC:
-1. Display the TC steps clearly
-2. Guide the user: "请执行以下操作：1) 打开页面 /xxx  2) 点击 '提交' 按钮（留空表单） 3) 告诉我页面发生了什么变化"
-3. After the user reports back, ask: "操作结果如何？[A] 符合预期 / [B] 不符合预期（请描述）/ [C] 跳过"
-4. Record the user's report as evidence in the interaction trace
+对每条 L2 TC：
+1. 清晰展示 TC 步骤
+2. 引导用户："请执行以下操作：1) 打开页面 /xxx  2) 点击 '提交' 按钮（留空表单） 3) 告诉我页面发生了什么变化"
+3. 用户报告后，询问："操作结果如何？[A] 符合预期 / [B] 不符合预期（请描述）/ [C] 跳过"
+4. 将用户的报告记录为交互追踪中的证据
 
 ---
 
-## L3: Structured Manual Verification
+## L3：结构化手工验证
 
-> L3 covers what automation cannot: subjective judgment, complex permission logic, multi-role scenarios, visual quality. Every L3 TC must have evidence — no evidence, no "done."
+> L3 覆盖自动化无法完成的内容：主观判断、复杂权限逻辑、多角色场景、视觉质量。每条 L3 TC 必须有证据 — 无证据，无“完成”。
 
-### Step 14: Evidence Requirements Matrix
+### 步骤 14：证据要求矩阵
 
-Different TC types need different evidence. This is non-negotiable:
+不同类型的 TC 需要不同的证据。这是不可协商的：
 
-| TC Type | Minimum Evidence | Acceptable Evidence |
-|---------|-----------------|---------------------|
-| 端到端 (降级到L3) | User confirmation of each step result | User report + relevant DOM snapshot / console log captured by model |
-| 手工 (视觉/体验) | User confirmation of visual check | User report describing what they saw |
-| 手工 (权限/角色) | User confirms behavior for each role | User report per role, OR console/network logs showing auth behavior |
-| 手工 (业务逻辑) | User confirms calculation/result is correct | User report with specific input/output values verified |
-| 手工 (其他) | At least user confirmation | Any relevant logs or snapshots the model can capture |
+| TC 类型 | 最低证据 | 可接受证据 |
+|---------|----------|------------|
+| 端到端（降级到L3） | 用户确认每一步结果 | 用户报告 + 模型捕获的相关 DOM snapshot / 控制台日志 |
+| 手工（视觉/体验） | 用户确认视觉检查 | 用户描述所见内容 |
+| 手工（权限/角色） | 用户确认每个角色的行为 | 每个角色的用户报告，或 显示认证行为的控制台/网络日志 |
+| 手工（业务逻辑） | 用户确认计算/结果正确 | 用户报告，包含已验证的具体输入/输出值 |
+| 手工（其他） | 至少用户确认 | 模型能捕获的任何相关日志或快照 |
 
-**Evidence grading:**
-- 🟢 **Strong evidence:** DOM snapshot + console log + network log + user confirmation
-- 🟡 **Adequate evidence:** User confirmation OR one type of automated log
-- 🔴 **No evidence:** TC status must be `unverified`, not `done`
+**证据分级：**
+- 🟢 **强证据：** DOM snapshot + 控制台日志 + 网络日志 + 用户确认
+- 🟡 **充分证据：** 用户确认 或 一种自动化日志
+- 🔴 **无证据：** TC 状态必须为 `unverified`，不能为 `done`
 
-### Step 15: Structured Verification Protocol
+### 步骤 15：结构化验证协议
 
-For each L3 TC:
+对每条 L3 TC：
 
-1. **Display the TC** clearly:
+1. **清晰展示 TC**：
    ```
    ─────────────────────────────
-   TC-xxx: [标题]
-   步骤:
+   TC-xxx：[标题]
+   步骤：
      1. [准备步骤]
      2. [操作步骤]
      3. [验证步骤]
-   预期结果: [应该发生什么]
+   预期结果：[应该发生什么]
    ─────────────────────────────
    ```
 
-2. **Attempt automated evidence collection first:** Before asking the user, check if any evidence can be gathered automatically:
-   - Can we navigate to the relevant page and capture a snapshot?
-   - Can we check console/network logs?
-   - Automated evidence is preferred because it's objective.
+2. **先尝试自动收集证据：** 在询问用户之前，检查是否可以自动收集任何证据：
+   - 能否导航到相关页面并捕获快照？
+   - 能否检查控制台/网络日志？
+   - 自动证据更受青睐，因为它是客观的。
 
-3. **Ask the user for what can't be automated:**
+3. **询问用户无法自动化的内容：**
    - "TC-xxx 需要人工判定。请执行上述步骤后告诉我：[具体的判定问题]。"
-   - For visual TCs: "请确认 [具体视觉效果] 是否符合预期？"
-   - For permission TCs: "请分别用 [角色A] 和 [角色B] 登录，确认看到的内容是否不同。"
+   - 对视觉 TC："请确认 [具体视觉效果] 是否符合预期？"
+   - 对权限 TC："请分别用 [角色A] 和 [角色B] 登录，确认看到的内容是否不同。"
 
-4. **Record evidence** immediately in `devflow/verification-log.md`:
+4. **立即将证据记录**到 `devflow/verification-log.md`：
 
 ```markdown
-#### TC-xxx: [标题]
+#### TC-xxx：[标题]
 
-**层级:** L3
-**证据类型:** [用户确认 / DOM snapshot / Console log / Network log]
-**证据:**
+**层级：** L3
+**证据类型：** [用户确认 / DOM snapshot / Console log / Network log]
+**证据：**
 - [用户报告内容，引用原文]
 - [自动采集的日志/snapshot 摘要]
-**证据等级:** 🟢 Strong / 🟡 Adequate
-**结果:** ✅ done / ❌ fail / ⚠️ unverified / ⏭️ skipped
-**备注:** [如有]
+**证据等级：** 🟢 Strong / 🟡 Adequate
+**结果：** ✅ done / ❌ fail / ⚠️ unverified / ⏭️ skipped
+**备注：** [如有]
 ```
 
-### Step 16: Unverified & Skipped Rules
+### 步骤 16：未验证与跳过规则
 
-- **No evidence → `unverified`:** A TC with zero evidence cannot be marked `done`. It stays `unverified` and counts against the depth score.
-- **User skipped → `skipped` with reason:** If the user explicitly says "skip this TC," record it as `skipped` with the reason they give. Skipped TCs are NOT counted as verified.
-- **TC not applicable → `n/a`:** If the TC genuinely doesn't apply to this feature (e.g., misrouted), mark as `n/a` with justification. n/a TCs are excluded from depth scoring.
+- **无证据 → `unverified`：** 零证据的 TC 不能标记为 `done`。它保持 `unverified` 状态，并计入深度评分。
+- **用户跳过 → `skipped` 并附理由：** 如果用户明确说“跳过此 TC”，将其记录为 `skipped` 并附上用户给出的理由。跳过的 TC **不**计入已验证。
+- **TC 不适用 → `n/a`：** 如果 TC 确实不适用于此功能（例如路由错误），标记为 `n/a` 并附上理由。n/a TC 从深度评分中排除。
 
 ---
 
-## Verification Report
+## 验证报告
 
-### Step 17: Aggregate All Three Layers
+### 步骤 17：汇总三层结果
 
-Combine L1, L2, and L3 results into a single evidence index:
+将 L1、L2 和 L3 结果合并为单一证据索引：
 
-1. Count TCs that were actually executed (had actions run or had user evidence collected) vs. TCs that were only marked based on static checks.
-2. Count TCs with at least one evidence item.
-3. Group by layer distribution.
+1. 统计实际执行的 TC（已运行动作或已收集用户证据）与仅基于静态检查标记的 TC。
+2. 统计至少有一条证据项的 TC。
+3. 按层级分布分组。
 
-### Step 18: Calculate Depth Scores
+### 步骤 18：计算深度评分
 
-**Verification Depth Score** = (TCs with actual execution or user evidence) / (Total TCs - n/a TCs)
+**验证深度评分** = （实际执行或有用户证据的 TC 数） / （总 TC 数 - n/a TC 数）
 
-- Execution means: L2 had Playwright actions run OR L3 had user confirmation recorded.
-- L1-only coverage does NOT count as "executed" — L1 checks infrastructure, not functionality.
+- 执行意味着：L2 已运行 Playwright 动作 或 L3 已记录用户确认。
+- 仅有 L1 覆盖**不**算作“已执行” — L1 检查基础设施，而非功能。
 
-**Evidence Coverage Score** = (TCs with at least one evidence item) / (Total TCs - n/a TCs)
+**证据覆盖率** = （至少有一条证据项的 TC 数） / （总 TC 数 - n/a TC 数）
 
-**Layer Distribution:**
-- L1 coverage: X TCs
-- L2 coverage: Y TCs (Z auto-executed, W degraded to manual)
-- L3 coverage: V TCs
+**层级分布：**
+- L1 覆盖：X 条 TC
+- L2 覆盖：Y 条 TC（Z 条自动执行，W 条降级为手工）
+- L3 覆盖：V 条 TC
 
-### Step 19: Generate Unified Verification Report
+### 步骤 19：生成统一验证报告
 
-Write the complete report to `devflow/verification-log.md`:
+将完整报告写入 `devflow/verification-log.md`：
 
 ```markdown
 # DevFlow 验证报告
 
-**日期:** YYYY-MM-DD HH:MM
-**应用:** <baseURL>
-**Feature:** <feature-name>
+**日期：** YYYY-MM-DD HH:MM
+**应用：** <baseURL>
+**功能：** <feature-name>
 
 ---
 
@@ -443,16 +443,16 @@ Write the complete report to `devflow/verification-log.md`:
 
 | TC | 路由 | 依据 |
 |----|------|------|
-| TC-001 | L1 | 关键词: "不报错" |
-| TC-002 | L2 | 关键词: "点击提交" |
-| TC-003 | L3 | 关键词: "权限" |
+| TC-001 | L1 | 关键词："不报错" |
+| TC-002 | L2 | 关键词："点击提交" |
+| TC-003 | L3 | 关键词："权限" |
 | ... | ... | ... |
 
-路由调整: [如有用户调整，记录]
+路由调整：[如有用户调整，记录]
 
 ---
 
-## L1: 烟雾扫描
+## L1：烟雾扫描
 
 | 类别 | 页面数 | 通过 | 失败 | 警告 |
 |------|--------|------|------|------|
@@ -461,43 +461,43 @@ Write the complete report to `devflow/verification-log.md`:
 | Runtime Health | N | X | Y | Z |
 | DOM Snapshot | N | X | Y | — |
 
-**问题清单:**
-1. **/page-x — Console Error:** [error text]
-   - 严重性: HIGH
-   - 建议: /devflow:implement T-xxx
+**问题清单：**
+1. **/page-x — Console Error：** [error text]
+   - 严重性：HIGH
+   - 建议：/devflow:implement T-xxx
 
 ---
 
-## L2: 交互验证追踪
+## L2：交互验证追踪
 
-### TC-002: [标题]
+### TC-002：[标题]
 - Step 1: navigate → /login ✅ 页面加载成功
-  - 操作前: [DOM摘要]
-  - 操作后: [DOM摘要]
-- Step 2: click "提交" (空表单) ✅ 表单校验触发
-  - DOM变化: +2 alert elements
-- **结果:** ✅ 通过
+  - 操作前：[DOM摘要]
+  - 操作后：[DOM摘要]
+- Step 2: click "提交"（空表单）✅ 表单校验触发
+  - DOM变化：+2 alert elements
+- **结果：** ✅ 通过
 
-### TC-004: [标题]
+### TC-004：[标题]
 - Step 1: navigate → /dashboard ✅
 - Step 2: click "删除" button ❌ 按钮点击后无 DOM 变化
-  - 操作前: [DOM摘要]
-  - 操作后: [DOM摘要 — 完全一致]
-  - **结果:** ❌ 失败 — 删除按钮点击无效
+  - 操作前：[DOM摘要]
+  - 操作后：[DOM摘要 — 完全一致]
+  - **结果：** ❌ 失败 — 删除按钮点击无效
 
 ---
 
-## L3: 结构化手工验证
+## L3：结构化手工验证
 
-#### TC-006: [标题]
-- **证据类型:** 用户确认
-- **证据:** 用户报告："用 admin 登录能看到所有菜单，用 user 登录只看到 3 个菜单"
-- **证据等级:** 🟡 Adequate
-- **结果:** ✅ done
+#### TC-006：[标题]
+- **证据类型：** 用户确认
+- **证据：** 用户报告："用 admin 登录能看到所有菜单，用 user 登录只看到 3 个菜单"
+- **证据等级：** 🟡 Adequate
+- **结果：** ✅ done
 
-#### TC-007: [标题]
-- **证据:** 无
-- **结果:** ⚠️ unverified — 用户未提供反馈
+#### TC-007：[标题]
+- **证据：** 无
+- **结果：** ⚠️ unverified — 用户未提供反馈
 
 ---
 
@@ -508,16 +508,16 @@ Write the complete report to `devflow/verification-log.md`:
 | 总 TC 数 | 10 | — |
 | 验证深度 | 8/10 (80%) | ⚠️ 2 条未执行 |
 | 证据覆盖率 | 9/10 (90%) | ⚠️ 1 条无证据 |
-| n/a (不适用) | 0 | — |
+| n/a（不适用） | 0 | — |
 
-**分层覆盖:**
-- L1 覆盖: 4 条（烟雾扫描）
-- L2 覆盖: 4 条（3 自动执行 + 1 手工降级）
-- L3 覆盖: 2 条
+**分层覆盖：**
+- L1 覆盖：4 条（烟雾扫描）
+- L2 覆盖：4 条（3 自动执行 + 1 手工降级）
+- L3 覆盖：2 条
 
-**未验证项:**
-- TC-007: 无证据（用户未反馈）
-- TC-009: 未执行（用户跳过 — "非本期范围"）
+**未验证项：**
+- TC-007：无证据（用户未反馈）
+- TC-009：未执行（用户跳过 — "非本期范围"）
 
 ---
 
@@ -529,87 +529,87 @@ Write the complete report to `devflow/verification-log.md`:
 
 ### 失败项详情
 
-1. **TC-004 (L2):** 删除按钮点击无效
-   - 操作: 在 /dashboard 点击 "删除" 按钮
-   - 预期: 出现确认弹窗或列表项减少
-   - 实际: DOM 无任何变化
-   - 严重性: HIGH
-   - 根因分析: 按钮可能未绑定点击事件或事件处理器有 bug
-   - 建议: /devflow:implement T-xxx（修复删除按钮事件绑定）
+1. **TC-004 (L2)：** 删除按钮点击无效
+   - 操作：在 /dashboard 点击 "删除" 按钮
+   - 预期：出现确认弹窗或列表项减少
+   - 实际：DOM 无任何变化
+   - 严重性：HIGH
+   - 根因分析：按钮可能未绑定点击事件或事件处理器有 bug
+   - 建议：/devflow:implement T-xxx（修复删除按钮事件绑定）
 ```
 
 ---
 
-### Step 20: Smart Rollback (When Issues Found)
+### 步骤 20：智能回滚意识
 
-When issues are found, classify and route them:
+发现问题时，分类并路由它们：
 
-| Failure Category | Layer | Root Phase | Action |
-|-----------------|-------|------------|--------|
-| Console error (TypeError, ReferenceError) | L1 | implement | Bug in code — re-run specific T-xxx |
-| HTTP 500 from API | L1 | implement | Backend bug — re-run affected task |
-| HTTP 404 for expected endpoint | L1 | blueprint | Missing API — fix spec, re-derive tasks |
-| White screen / app crash | L1 | implement | Runtime error — re-run affected task |
-| Missing UI element (snapshot fail) | L1 | implement | Incomplete UI — re-run that component's task |
-| Button click no response | L2 | implement | Event handler bug — re-run specific T-xxx |
-| Form submit wrong behavior | L2 | implement or blueprint | Bug or spec gap — re-run task or revisit design |
-| Interaction triggers wrong outcome | L2 | blueprint or breakdown | Design or requirement gap |
-| Business logic wrong (L3 fail) | L3 | blueprint or breakdown | Design or requirement gap |
-| Visual/animation issue (L3 fail) | L3 | implement | UI fix — re-run specific T-xxx |
-| Permission logic wrong (L3 fail) | L3 | blueprint | Design gap — revisit auth spec |
-| Requirement no longer valid | L3 | breakdown or clarify | Revisit requirements |
+| 失败类别 | 层级 | 根因阶段 | 操作 |
+|----------|------|----------|------|
+| 控制台错误（TypeError, ReferenceError） | L1 | implement | 代码 bug — 重新运行特定 T-xxx |
+| API 返回 HTTP 500 | L1 | implement | 后端 bug — 重新运行受影响任务 |
+| 预期端点返回 HTTP 404 | L1 | blueprint | 缺失 API — 修复规格，重新推导任务 |
+| 白屏 / 应用崩溃 | L1 | implement | 运行时错误 — 重新运行受影响任务 |
+| 缺失 UI 元素（快照失败） | L1 | implement | UI 不完整 — 重新运行该组件的任务 |
+| 按钮点击无响应 | L2 | implement | 事件处理器 bug — 重新运行特定 T-xxx |
+| 表单提交行为错误 | L2 | implement 或 blueprint | Bug 或规格缺口 — 重新运行任务或重新审视设计 |
+| 交互触发错误结果 | L2 | blueprint 或 breakdown | 设计或需求缺口 |
+| 业务逻辑错误（L3 失败） | L3 | blueprint 或 breakdown | 设计或需求缺口 |
+| 视觉/动画问题（L3 失败） | L3 | implement | UI 修复 — 重新运行特定 T-xxx |
+| 权限逻辑错误（L3 失败） | L3 | blueprint | 设计缺口 — 重新审视认证规格 |
+| 需求不再有效 | L3 | breakdown 或 clarify | 重新审视需求 |
 
-**Incremental redo principle:** Only re-do the affected chain. If R-003 changed and only T-005 and TC-008 were affected, only those need re-work. Everything else stays verified.
+**增量重做原则：** 仅重做受影响的链。如果 R-003 改变且只有 T-005 和 TC-008 受影响，则只需重做这些。其余保持已验证状态。
 
-### Step 21: All Green — Complete
+### 步骤 21：全部通过 — 完成
 
-**"All green" now requires BOTH:**
-1. All TCs either `done` or `n/a` (no `fail`, no `unverified`)
-2. **Verification depth = 100%** (every TC was actually executed or had evidence collected)
+**"全部通过"现在要求同时满足：**
+1. 所有 TC 为 `done` 或 `n/a`（无 `fail`，无 `unverified`）
+2. **验证深度 = 100%**（每条 TC 都被实际执行或已收集证据）
 
-When both conditions are met:
+当两个条件都满足时：
 
 > "✅ 全部验证通过（深度 100%，证据覆盖率 100%）。DevFlow 循环完成。"
 
-- All TC statuses updated to `done`
-- All R statuses updated to `done`
-- Suggest next: commit, push, deploy
+- 所有 TC 状态更新为 `done`
+- 所有 R 状态更新为 `done`
+- 建议下一步：提交、推送、部署
 
-**When depth < 100%:**
+**当深度 < 100% 时：**
 
 > "⚠️ 验证未完全完成。验证深度 [X]%，[N] 条 TC 未执行或无证据。是否接受当前结果？[Y] 接受，标记为完成 / [N] 继续验证未覆盖的 TC"
 
-This prevents the old pattern of "all checks passed but features don't work" — because checks that weren't actually executed can't "pass."
+这防止了旧模式“所有检查通过但功能不工作” — 因为未实际执行的检查不能算“通过”。
 
 ---
 
-## Handoff
+## 交接
 
-After successful verification (depth = 100%, all passing):
+验证成功完成后（深度 = 100%，全部通过）：
 
-- Suggest git commit and push for any fixes made during verification
-- Suggest PR creation if applicable
-- No further DevFlow commands needed for this feature
+- 建议对在验证期间所做的任何修复进行 git commit 和 push
+- 如适用，建议创建 PR
+- 此功能无需进一步的 DevFlow 命令
 
-If issues remain, handoff to the identified phase for re-work.
+如果问题仍然存在，交接给已识别的阶段进行返工。
 
 ---
 
-## Playwright MCP Tool Reference
+## Playwright MCP 工具参考
 
-This skill uses the following Playwright MCP tools:
+本技能使用以下 Playwright MCP 工具：
 
-| Tool | Purpose | Used In |
-|------|---------|---------|
-| `browser_navigate` | Navigate to a URL | L1, L2 |
-| `browser_console_messages` | Collect console output (filter for errors) | L1 |
-| `browser_network_requests` | Retrieve all HTTP requests and status codes | L1 |
-| `browser_snapshot` | Get accessibility tree / semantic DOM structure | L1, L2, L3 |
-| `browser_scroll` | Scroll the page by pixels or viewport | L1 |
-| `browser_click` | Click an element on the page | L2 |
-| `browser_type` | Type text into an editable element | L2 |
-| `browser_fill_form` | Fill multiple form fields at once | L2 |
-| `browser_select_option` | Select an option in a dropdown | L2 |
-| `browser_wait_for` | Wait for text to appear/disappear or time to pass | L2 |
-| `browser_press_key` | Press a key on the keyboard | L2 |
-| `browser_hover` | Hover over an element | L2 |
+| 工具 | 用途 | 用于 |
+|------|------|------|
+| `browser_navigate` | 导航到 URL | L1, L2 |
+| `browser_console_messages` | 收集控制台输出（过滤错误） | L1 |
+| `browser_network_requests` | 检索所有 HTTP 请求和状态码 | L1 |
+| `browser_snapshot` | 获取可访问性树 / 语义 DOM 结构 | L1, L2, L3 |
+| `browser_scroll` | 按像素或视口滚动页面 | L1 |
+| `browser_click` | 点击页面上的元素 | L2 |
+| `browser_type` | 在可编辑元素中输入文本 | L2 |
+| `browser_fill_form` | 同时填写多个表单字段 | L2 |
+| `browser_select_option` | 在下拉框中选择选项 | L2 |
+| `browser_wait_for` | 等待文本出现/消失或时间经过 | L2 |
+| `browser_press_key` | 按下键盘按键 | L2 |
+| `browser_hover` | 悬停在元素上 | L2 |

@@ -1,96 +1,96 @@
 ---
 name: clarify
-description: Expand and align on a vague requirement through structured dialogue. Explore user intent, constraints, and success criteria. Propose alternative approaches with trade-offs.
-argument-hint: <rough-idea>
+description: 通过结构化对话扩展并明确模糊需求。探索用户意图、约束条件与成功标准。提出多种替代方案并分析其利弊。
+argument-hint: [粗略想法]
 allowed-tools: [Read, Glob, Grep, Bash, WebSearch, TaskCreate]
 ---
 
-# /devflow:clarify — Requirements Clarification
+# /devflow:clarify — 需求澄清
 
-## When to Use
+## 何时使用
 
-You have a rough idea or vague requirement. It might come from:
-- A `/devflow:discover` optimization item you selected
-- A feature idea you want to explore
-- A problem statement that needs refinement
+你有一个粗略的想法或模糊的需求。它可能来自：
+- 你在 `/devflow:discover` 优化项中选择的一项
+- 一个你想探索的功能想法
+- 一个需要进一步细化的问题陈述
 
-## Process
+## 流程
 
-### Step 1: Restate the Idea
+### 步骤 1：复述想法
 
-Restate what you understand in 1-2 sentences. Ask for confirmation before proceeding.
+用 1-2 句话复述你的理解。在继续之前，请用户确认。
 
-### Step 2: Explore Through Dialogue
+### 步骤 2：通过对话探索
 
-Ask questions ONE AT A TIME. Each question should deepen understanding:
+每次只问一个问题。每个问题都应加深理解：
 
-**Key dimensions to explore:**
-- **Purpose:** What problem does this solve? Who benefits?
-- **Maturity expectation:** Is this a throwaway prototype, an MVP for validation, or a production-grade feature? What level of polish is expected? AI defaults to demo-level — failing to clarify this leads to code that looks finished but isn't ready for real use.
-- **Constraints:** Any technical, time, or resource constraints?
-- **Success criteria:** How will we know this is done and done well? Include both functional (it works) and non-functional (it handles errors, covers edge cases, has complete UI states).
-- **Scope:** What's in scope? What's explicitly NOT in scope?
-- **Users:** Who are the end users? What's their workflow?
-- **Existing code:** Any relevant parts of the codebase to be aware of?
+**需要探索的关键维度：**
+- **目的：** 这解决了什么问题？谁受益？
+- **成熟度预期：** 这是一个可丢弃的原型、用于验证的 MVP，还是一个生产级功能？期望的打磨程度是什么？AI 默认生成演示级代码 —— 如果不明确这一点，会导致代码看起来已完成，但尚未准备好投入实际使用。
+- **约束条件：** 有任何技术、时间或资源约束吗？
+- **成功标准：** 我们如何知道这件事已经完成且做得很好？包括功能性的（它能工作）和非功能性的（它能处理错误、覆盖边界情况、具备完整的 UI 状态）。
+- **范围：** 什么在范围内？什么明确不在范围内？
+- **用户：** 最终用户是谁？他们的工作流是什么？
+- **现有代码：** 代码库中是否有需要关注的相关部分？
 
-**Dialogue rules:**
-- One question per turn
-- Prefer multiple choice when options are clear
-- Open-ended is fine when exploring
-- After 3-4 questions, summarize what you've learned and confirm
+**对话规则：**
+- 每轮只问一个问题
+- 当选项明确时，优先使用选择题
+- 探索阶段使用开放式问题也可以
+- 问了 3-4 个问题后，总结已了解的内容并请用户确认
 
-### Step 3: Propose 2-3 Approaches
+### 步骤 3：提出 2-3 种方案
 
-Once the requirement is clear enough, propose 2-3 approaches:
+一旦需求足够清晰，提出 2-3 种方案：
 
 ```markdown
-## Approaches
+## 方案
 
-### Approach A: [Name]
-**How:** [1-2 sentences]
-**Pros:** ...
-**Cons:** ...
+### 方案 A：[名称]
+**做法：** [1-2 句话]
+**优点：** ...
+**缺点：** ...
 
-### Approach B: [Name]
-**How:** [1-2 sentences]
-**Pros:** ...
-**Cons:** ...
+### 方案 B：[名称]
+**做法：** [1-2 句话]
+**优点：** ...
+**缺点：** ...
 
-### Recommendation
-[Which approach and why]
+### 推荐
+[推荐哪个方案及原因]
 ```
 
-Lead with your recommended approach and explain why.
+优先展示推荐的方案并解释原因。
 
-### Step 4: Converge to Clear Requirements
+### 步骤 4：收敛为明确需求
 
-After the user selects an approach, produce a clear requirements summary:
+用户选定方案后，生成一份清晰的需求摘要：
 
 ```markdown
-## Clarified Requirements
+## 已澄清的需求
 
-**Goal:** [One sentence]
+**目标：** [一句话]
 
-**What:**
-- Requirement 1
-- Requirement 2
+**做什么：**
+- 需求 1
+- 需求 2
 - ...
 
-**What NOT to do:**
-- Non-goal 1
-- Non-goal 2
+**不做什么：**
+- 非目标 1
+- 非目标 2
 
-**Success Criteria:**
-- Criterion 1
-- Criterion 2
+**成功标准：**
+- 标准 1
+- 标准 2
 
-**Constraints:**
-- Constraint 1
+**约束条件：**
+- 约束 1
 ```
 
-## Handoff
+## 交接
 
-Once requirements are clear and user confirms, suggest:
-- `/devflow:breakdown` — to break these requirements into a numbered, trackable checklist
+一旦需求清晰且用户确认后，建议：
+- `/devflow:breakdown` — 将这些需求分解为编号、可追踪的清单
 
-Do NOT automatically invoke breakdown. Wait for the user to confirm.
+不要自动调用 breakdown。等待用户确认。

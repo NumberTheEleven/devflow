@@ -1,83 +1,83 @@
 ---
 name: breakdown
-description: Break down clear requirements into a numbered, trackable checklist. Each requirement gets an ID (R-001, R-002...), priority, dependencies, and acceptance criteria. Output is persisted to devflow/requirements.md.
-argument-hint: [requirements-description]
+description: 将明确的需求拆分为带编号的、可追踪的 checklist。每条需求分配 ID（R-001、R-002...）、优先级、依赖关系和验收标准。输出持久化到 devflow/requirements.md。
+argument-hint: [需求描述]
 allowed-tools: [Read, Write, Glob, Bash, TaskCreate]
 ---
 
-# /devflow:breakdown — Requirements Breakdown
+# /devflow:breakdown — 需求拆分（Requirements Breakdown）
 
-## When to Use
+## 何时使用
 
-You have clear requirements — either from `/devflow:clarify` output, or you already have a well-defined PRD or requirements document. You can also start directly from this command if you already know what you want.
+你已拥有明确的需求 —— 无论是来自 `/devflow:clarify` 的输出，还是你已经有一份定义良好的 PRD 或需求文档。如果你已经清楚自己想要什么，也可以直接从此命令开始。
 
-## Process
+## 流程
 
-### Step 1: Load Existing State
+### 步骤 1：加载现有状态
 
-Check if `devflow/requirements.md` exists. If it does, read it — we may be updating an existing breakdown.
+检查 `devflow/requirements.md` 是否存在。如果存在，先读取它 —— 我们可能正在更新已有的拆分结果。
 
-### Step 2: Decompose Requirements
+### 步骤 2：分解需求
 
-Break down the requirement into discrete, verifiable sub-requirements:
+将需求拆分为离散的、可验证的子需求：
 
-- Each sub-requirement = one numbered item (R-001, R-002, ...)
-- Each gets a clear title and one-sentence description
-- Assign priority: **P0** (must have), **P1** (should have), **P2** (nice to have)
-- Mark dependencies: which other requirements must be completed first
-- Each must have measurable acceptance criteria (checkbox format)
+- 每个子需求 = 一个带编号的条目（R-001、R-002、...）
+- 每条都有清晰的标题和一句话描述
+- 分配优先级：**P0**（必须有）、**P1**（应该有）、**P2**（最好有）
+- 标记依赖关系：哪些其他需求必须先完成
+- 每条都必须有可衡量的验收标准（checkbox 格式）
 
-**Production-quality requirements:** By default, include requirements that prevent demo-level gaps. Unless the user explicitly says otherwise, add:
-- Error handling for all external dependencies (API calls, file I/O, user input)
-- Complete UI state coverage: loading, empty, error, success, and edge cases
-- Input validation and sanitization
-- Basic logging for key operations
-- These can be P1/P2 if the core functionality is P0, but they MUST appear in the checklist rather than being silently omitted
+**生产级需求：** 默认情况下，需包含防止“演示级缺口”的需求。除非用户明确说明不需要，否则请添加：
+- 所有外部依赖（API 调用、文件 I/O、用户输入）的错误处理
+- 完整的 UI 状态覆盖：loading、empty、error、success 及边界情况
+- 输入验证与清理（sanitization）
+- 关键操作的基础日志记录
+- 如果核心功能是 P0，这些可以是 P1/P2，但**必须**出现在 checklist 中，而不是被静默省略
 
-### Step 3: Present for Confirmation
+### 步骤 3：展示并确认
 
-Show the complete numbered list to the user:
+向用户展示完整的编号列表：
 
 ```
-## Requirements Checklist
+## 需求清单
 
-R-001 | P0 | [Title] | depends: none
-  Description: ...
-  Accept: - [ ] criterion 1
-          - [ ] criterion 2
+R-001 | P0 | [标题] | depends: none
+  描述：...
+  验收：- [ ] 标准 1
+          - [ ] 标准 2
 
-R-002 | P1 | [Title] | depends: R-001
+R-002 | P1 | [标题] | depends: R-001
   ...
 ```
 
-Ask user to confirm the breakdown, adjust priorities, or add/remove items.
+请用户确认该拆分、调整优先级，或增删条目。
 
-### Step 4: Persist to File
+### 步骤 4：持久化到文件
 
-Write to `devflow/requirements.md`:
+写入 `devflow/requirements.md`：
 
-- Create `devflow/` directory if it doesn't exist
-- Use the template from `skills/breakdown/references/requirements-template.md`
-- Fill in actual requirement data
-- Set all statuses to `pending`
+- 如果 `devflow/` 目录不存在，则创建它
+- 使用 `skills/breakdown/references/requirements-template.md` 中的模板
+- 填入实际的需求数据
+- 将所有状态设置为 `pending`
 
-The file MUST follow the template format exactly — it will be read by downstream skills (`/devflow:blueprint`, `/devflow:verify`).
+该文件**必须**严格遵循模板格式 —— 下游 skill（`/devflow:blueprint`、`/devflow:verify`）会读取它。
 
-### Step 5: Confirm Persistence
+### 步骤 5：确认持久化结果
 
-Read back `devflow/requirements.md` to confirm it was written correctly. Show a summary to the user:
+读回 `devflow/requirements.md` 以确认写入正确。向用户展示摘要：
 
-> "Requirements checklist saved to `devflow/requirements.md` with N items (R-001 to R-xxx)."
+> “需求 checklist 已保存到 `devflow/requirements.md`，共 N 条（R-001 到 R-xxx）。”
 
-## Handoff
+## 交接
 
-Ask the user:
+询问用户：
 
-> "Requirements locked. Next: /devflow:blueprint to create the solution design, business flow diagrams, and test cases. Or do you need to adjust anything?"
+> “需求已锁定。下一步：执行 `/devflow:blueprint` 创建解决方案设计、业务流程图和测试用例。或者你需要先调整什么？”
 
-## Smart Rollback Awareness
+## 智能回滚意识
 
-If the user says anything like "requirement X is wrong" or "we need to change R-003":
-- Update `devflow/requirements.md` with the change
-- If any downstream files exist (`design.md`, `tasks.md`, `test-cases.md`), flag that affected items in those files may need re-validation
-- Do NOT automatically modify downstream files — let the user re-run the relevant commands
+如果用户说类似“需求 X 错了”或“我们需要修改 R-003”：
+- 更新 `devflow/requirements.md`
+- 如果下游文件已存在（`design.md`、`tasks.md`、`test-cases.md`），标记这些文件中受影响的条目可能需要重新验证
+- **不要**自动修改下游文件 —— 让用户重新执行相关命令
