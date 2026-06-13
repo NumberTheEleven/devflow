@@ -1,6 +1,6 @@
 {
   "feature": "skills-chinese-translation",
-  "phase": "implement",
+  "phase": "completed",
   "created_at": "2026-06-13T16:35:00+08:00",
   "version": "2.1",
   "requirements_confirmed": true,
@@ -8,7 +8,7 @@
     "clarify": "done",
     "breakdown": "done",
     "blueprint": "done",
-    "implement": "in_progress",
-    "verify": "pending"
+    "implement": "done",
+    "verify": "done"
   }
 }
