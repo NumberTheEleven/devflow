@@ -1,6 +1,6 @@
-# DevFlow v2.2
+# DevFlow v2.3
 
-AI 开发规范流程 — 单一入口，按阶段推进，闭环管理。新增 AI 视觉审查能力，可自动发现 UI 重叠、遮挡、溢出、截断等前端展示问题。
+AI 开发规范流程 — 单一入口，按阶段推进，闭环管理。支持多 worktree 会话隔离与强制合并验证，防止多 feature 并行开发时的冲突与语义回归。新增 AI 视觉审查能力，可自动发现 UI 重叠、遮挡、溢出、截断等前端展示问题。
 
 ## 安装
 
@@ -19,33 +19,49 @@ AI 开发规范流程 — 单一入口，按阶段推进，闭环管理。新增
 ```
 /devflow 模糊需求
     ↓
-Phase 1: 需求澄清 — 纯对话
+Step 0: 入口检测 → worktree / 会话检测
     ↓
+Phase 1: 需求澄清 — 纯对话
+    ↓ checkpoint
 Phase 2: 需求拆解 → R-xxx 清单
     ↓ checkpoint
 Phase 3: 方案蓝图 → 流程图 + 设计规格 + TC-xxx
     ↓ checkpoint
 Phase 4: 编码实现 → T-xxx 任务 + 架构图 + 代码
     ↓ checkpoint
-Phase 5: 测试验证 → 逐项核对 + 智能回退
-    ↓
-全部通过 → 流程完成
+Phase 5: 测试验证 → L1烟雾 + L2交互 + L3手工
+    ↓ checkpoint
+Phase 6: 流程完成 → 合并验证 + 提交 + worktree 清理
 ```
 
 ## 特性
 
 - **单一入口：** 只需 `/devflow`，无子命令
-- **自动推进：** 阶段间自动流转，checkpoint 提供继续/跳转控制
+- **worktree 隔离：** 每个 DevFlow 会话在独立 git worktree 中运行，多 feature 并行开发互不干扰
+- **强制合并验证：** 完成前自动检测目标分支新变更，验证涉及 feat 并强制解决冲突，防止语义回归
+- **自动推进：** 阶段间自动流转，checkpoint 提供继续控制
 - **兜底提交：** 流程完成前自动检测未提交文件，防止数据丢失
 - **暂停恢复：** 随时中断，下次自动从断点继续
 - **中文输出：** 模板、状态、提示全部中文化
 
-## 管理命令
+## 会话文件
 
-| 输入 | 用途 |
-|------|------|
-| `/devflow list` | 列出所有 DevFlow 会话及当前阶段 |
-| `/devflow cleanup` | 手动清理指定会话的跟踪文件（含确认） |
+每个 feature 的 DevFlow 文件隔离在 `devflow/<feature>/` 目录下：
+
+```
+devflow/
+├── user-auth/
+│   ├── state.json
+│   ├── requirements.md
+│   ├── design.md
+│   ├── tasks.md
+│   ├── test-cases.md
+│   └── verification-log.md
+└── payment/
+    └── ...
+```
+
+所有文件随 feature 分支提交到远端，便于冲突验证时读取历史 feat 的测试用例。
 
 ## Checkpoint 选项
 
@@ -53,11 +69,20 @@ Phase 5: 测试验证 → 逐项核对 + 智能回退
 
 | 输入 | 行为 |
 |------|------|
-| Y / 回车 / 继续 | 进入下一阶段 |
-| 跳转到 [阶段名] | 跳过中间阶段 |
+| 确认 / Yes / Y | 进入下一阶段 |
+| 其他回复 | 视为需要修改，修正后重新展示完整结果 |
 | 不回复 | 自然暂停，下次自动恢复 |
 
 ## 版本变更
+
+### v2.3
+- 恢复 git worktree 会话隔离机制，支持同一用户同时推进多个 DevFlow
+- 新增 `devflow/<feature>/` 文件结构，按 feature 隔离状态与文档
+- 新增 Phase 6 强制合并验证：检测目标分支新 merge commit、验证涉及 feat、强制解决冲突
+- 新增语义冲突捕获：时间窗口内所有涉及 feat 的测试用例重跑
+- 新增会话完成后自动清理 worktree
+- 移除 `/devflow list` 和 `/devflow cleanup` 管理命令，保持单一入口
+- 自动识别目标分支 `master` 或 `main`
 
 ### v2.2
 - 新增 AI 视觉审查机制：对涉及前端/视觉/布局的 TC 自动启用 Playwright 截图 + AI 视觉分析
