@@ -1,9 +1,9 @@
 {
   "name": "devflow",
-  "description": "Structured AI-assisted development workflow — from project discovery to verification. Single entry point /devflow guides you through requirements, design, implementation, and testing with full-chain numbered tracking. Now supports multi-worktree sessions for concurrent feature development and mandatory merge validation to catch conflicts and semantic regressions.",
+  "description": "Structured AI-assisted development workflow — from project discovery to verification. Single entry point /devflow guides you through requirements, design, implementation, and testing with full-chain numbered tracking. Uses full-repo copy isolation for concurrent feature development and mandatory merge validation to catch conflicts and semantic regressions.",
   "author": {
     "name": "NumberTheEleven",
     "email": "numtheeleven@gmail.com"
   },
-  "version": "2.3.0"
+  "version": "2.4.0"
 }

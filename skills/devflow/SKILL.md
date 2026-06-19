@@ -1,18 +1,18 @@
 ---
 name: devflow
-description: DevFlow v2.3 — AI 开发规范流程，单一入口，按阶段推进完整开发流程。支持多 worktree 会话隔离与强制合并验证，防止多 feature 并行开发时的冲突与语义回归。
+description: DevFlow v2.4 — AI 开发规范流程，单一入口，按阶段推进完整开发流程。支持完整副本会话隔离与强制合并验证，防止多 feature 并行开发时的冲突与语义回归。
 argument-hint: [模糊需求描述]
 allowed-tools: [Read, Write, Glob, Grep, Bash, Edit, Agent, TaskCreate, WebSearch, WebFetch, LSP, Skill]
 ---
 
-# /devflow — DevFlow v2.3
+# /devflow — DevFlow v2.4
 
 ## 流程总览
 
 ```
 用户输入: /devflow 模糊需求
     ↓
-Step 0: 入口检测 → 判断当前是否在 worktree / 是否有活跃会话
+Step 0: 入口检测 → 判断当前是否在开发环境副本 / 是否有活跃会话
     ↓
 Phase 1: 需求澄清 (clarify) — 纯对话，不产生文件
     ↓ checkpoint（显式确认）
@@ -24,13 +24,13 @@ Phase 4: 编码实现 (implement) → T-xxx 任务 + 架构图 + 代码
     ↓ checkpoint（显式确认）
 Phase 5: 测试验证 (verify) → L1烟雾 + L2交互 + L3手工，证据驱动
     ↓ checkpoint（人工验收）
-Phase 6: 流程完成 → 合并验证 + 提交 + worktree 清理
+Phase 6: 流程完成 → 合并验证 + 提交 + 开发环境清理
 ```
 
 **核心原则：**
 - 唯一入口：`/devflow`，没有子命令
 - clarify 阶段不产生任何文件写入
-- clarify 确认后在独立 git worktree 中创建会话，所有后续文件改动在该 worktree 中进行
+- clarify 确认后创建完整仓库副本作为开发环境，所有后续文件改动在该副本中进行
 - 每个 feature 的 DevFlow 文件隔离在 `devflow/<feature>/` 目录下，随 feature 分支提交
 - **每个阶段结束时必须获得用户显式确认（"确认"/"Yes"/"Y"），才能进入下一阶段**
 - **用户未明确确认时，一律视为需要修改；修正后必须重新展示完整结果并再次等待确认**
@@ -45,16 +45,16 @@ Phase 6: 流程完成 → 合并验证 + 提交 + worktree 清理
 
 收到 `/devflow` 请求后，首先判断当前环境：
 
-### 0.1 检测当前是否在 worktree 中
+### 0.1 检测当前是否在开发环境副本中
 
-执行 `git rev-parse --git-dir` 和 `git rev-parse --show-toplevel`，判断当前目录是否在 git worktree 中。
+检查当前目录是否在 `.claude/worktrees/devflow-*` 下，并存在 `devflow/<feature>/state.json`：
 
-- **当前在 worktree 中：**
-  - 说明用户进入了某个 feature 的 worktree 继续工作
-  - 读取该 worktree 内 `devflow/<feature>/state.json` 恢复会话
+- **当前在开发环境副本中：**
+  - 说明用户进入了某个 feature 的开发环境继续工作
+  - 读取 `devflow/<feature>/state.json` 恢复会话
   - 如果 state 不存在或损坏，提示用户并建议从 clarify 重新开始
 
-- **当前在主仓库（非 worktree）：**
+- **当前在主仓库（非副本）：**
   - 视为启动新会话
   - 继续 0.2 检查是否有旧版活跃会话
 
@@ -63,8 +63,8 @@ Phase 6: 流程完成 → 合并验证 + 提交 + worktree 清理
 检查主仓库根目录下是否存在未完成的旧版 `devflow/state.json`：
 
 - **存在且 `phase` 不是 `"completed"`：** 说明有未完成的旧版 DevFlow 会话。
-  - 输出："检测到主仓库存在未完成的旧版 DevFlow 会话（feature: `<feature>`，当前阶段：`<phase>`）。v2.3 起会话需要在 worktree 中运行，请先完成或手动清理该会话后再开始新会话。"
-  - 不创建新 worktree，等待用户处理
+  - 输出："检测到主仓库存在未完成的旧版 DevFlow 会话（feature: `<feature>`，当前阶段：`<phase>`）。v2.4 起会话需要在开发环境副本中运行，请先完成或手动清理该会话后再开始新会话。"
+  - 不创建新开发环境，等待用户处理
 
 - **不存在或 `phase` 为 `"completed"`：**
   - 如果没有传入需求描述，询问用户要做什么
@@ -72,10 +72,10 @@ Phase 6: 流程完成 → 合并验证 + 提交 + worktree 清理
 
 ### 0.3 管理命令说明
 
-v2.3 起不再提供 `/devflow list` 和 `/devflow cleanup` 管理命令。`/devflow` 保持唯一入口。
+v2.4 起不再提供 `/devflow list` 和 `/devflow cleanup` 管理命令。`/devflow` 保持唯一入口。
 
 - 如需查看会话，直接查看 `devflow/<feature>/` 目录或 `.claude/worktrees/` 目录
-- 如需清理 worktree，使用标准 `git worktree remove` 命令
+- 如需清理开发环境副本，直接删除对应目录即可
 
 ---
 
@@ -133,12 +133,13 @@ Feature 名称确认后，执行以下步骤：
    - 同时存在 → 默认使用 `main`
    - 都不存在 → 报错并停止
 
-2. **检查冲突：** 检查是否已存在同名 branch 或 worktree：
+2. **检查冲突：** 检查是否已存在同名 branch 或开发环境目录：
    ```bash
    git branch --list <feature>
-   git worktree list
+   ls -d .claude/worktrees/devflow-<feature> 2>/dev/null  # Unix
+   # 或 Test-Path .claude/worktrees/devflow-<feature>      # Windows
    ```
-   - 如果存在，报错："feature 名称 `<feature>` 已存在（branch 或 worktree），请更换名称。"
+   - 如果存在，报错："feature 名称 `<feature>` 已存在（branch 或开发环境），请更换名称。"
    - 不存在则继续
 
 3. **创建 feature branch：**
@@ -146,20 +147,45 @@ Feature 名称确认后，执行以下步骤：
    git checkout -b <feature>
    ```
 
-4. **创建 worktree：**
+4. **创建开发环境副本（完整复制）：**
+
+   a. **切回目标分支：**
    ```bash
    git checkout <target-branch>
-   git worktree add .claude/worktrees/devflow-<feature> <feature>
    ```
 
-5. **初始化状态目录和文件：** 在 worktree 内创建 `devflow/<feature>/` 目录，写入 `state.json`：
+   b. **完整复制主仓库到开发环境：**
+      ```bash
+      rsync -av --exclude='.claude/worktrees' <repo-root>/ .claude/worktrees/devflow-<feature>/
+      ```
+      将当前仓库的**全部内容**（包括 node_modules、.env、本地数据等 gitignore 文件）
+      复制到开发环境目录，确保开发环境与主仓库具有相同的运行时环境。
+      
+      **排除项：**
+      - `.claude/worktrees/` — 避免嵌套复制其他开发环境
+
+      **跨平台策略（AI agent 自动选择可用工具）：**
+      - 优先 `rsync -av --exclude='.claude/worktrees' <src>/ <dst>/`
+      - Windows 备选 `robocopy <src> <dst> /E /XD .claude`
+      - 通用备选：手动逐目录复制（跳过 .claude/worktrees/）
+
+   c. **在副本中切换到 feature 分支：**
+      ```bash
+      cd .claude/worktrees/devflow-<feature>
+      git checkout <feature>
+      ```
+
+   > 复制完成后，开发环境即处于**可运行状态**——所有依赖、配置、本地数据
+   > 均已在副本中就绪，无需额外初始化即可启动完整服务进行验收。
+
+5. **初始化状态目录和文件：** 在开发环境副本内创建 `devflow/<feature>/` 目录，写入 `state.json`：
 
    ```json
    {
      "feature": "<feature-name>",
      "phase": "breakdown",
      "created_at": "<ISO timestamp>",
-     "version": "2.3",
+     "version": "2.4",
      "requirements_confirmed": true,
      "open_questions": ["<待澄清项>"],
      "checkpoints": {
@@ -173,7 +199,7 @@ Feature 名称确认后，执行以下步骤：
    ```
 
 6. **提示用户：**
-   > "会话 `<feature>` 已在 worktree `.claude/worktrees/devflow-<feature>` 中准备就绪。后续所有文件操作将在该 worktree 内进行。"
+   > "会话 `<feature>` 已在开发环境副本 `.claude/worktrees/devflow-<feature>` 中准备就绪。所有文件（含 node_modules、本地配置等）已完整复制，可立即启动服务。后续所有文件操作将在该副本内进行。"
 
 ### 1.5 进入下一阶段
 
@@ -406,7 +432,7 @@ git log --merges --first-parent <base-commit>..<target-branch>
 
 #### 6.2.5 执行 merge
 
-在 worktree 内执行：
+在开发环境副本内执行：
 
 ```bash
 git merge <target-branch>
@@ -497,15 +523,15 @@ git push origin <feature-branch>  # 如果目标分支在远端
 
 具体方式根据项目 workflow 选择，但必须在目标分支上生成 merge commit。
 
-### 6.5 自动清理 worktree
+### 6.5 自动清理开发环境副本
 
-提交成功后，自动移除 worktree：
+提交成功后，自动删除开发环境副本：
 
 ```bash
-git worktree remove .claude/worktrees/devflow-<feature>
+rm -rf .claude/worktrees/devflow-<feature>
 ```
 
-清理前确认 worktree 内无未提交变更。清理失败时给出明确提示。
+清理前确认副本内无未提交变更。清理失败时给出明确提示。
 
 ### 6.6 标记完成
 
@@ -518,11 +544,11 @@ git worktree remove .claude/worktrees/devflow-<feature>
 }
 ```
 
-输出："DevFlow v2.3 流程完成。跟踪文件保存在 devflow/<feature>/ 目录。"
+输出："DevFlow v2.4 流程完成。跟踪文件保存在 devflow/<feature>/ 目录。"
 
 ### 6.7 保留会话
 
-如果用户选择保留会话，状态文件标记 `phase: "completed"`，worktree 可以保留或手动清理。
+如果用户选择保留会话，状态文件标记 `phase: "completed"`，开发环境副本可以保留或手动清理。
 
 ---
 
@@ -548,7 +574,7 @@ git worktree remove .claude/worktrees/devflow-<feature>
 
 | 从 → 到 | 必须满足的条件 |
 |---------|---------------|
-| clarify → breakdown | 用户明确回复"确认"/"Yes"/"Y"；feature 名称确认；worktree 创建成功 |
+| clarify → breakdown | 用户明确回复"确认"/"Yes"/"Y"；feature 名称确认；开发环境副本创建成功 |
 | breakdown → blueprint | 用户明确回复"确认"/"Yes"/"Y"；完整 R-xxx 清单已确认；所有待澄清项已解决 |
 | blueprint → implement | 用户明确回复"确认"/"Yes"/"Y"；完整设计方案 + TC 清单已确认 |
 | implement → verify | 用户明确回复"确认"/"Yes"/"Y"；完整 T-xxx 已完成 |
@@ -597,9 +623,9 @@ git worktree remove .claude/worktrees/devflow-<feature>
 | 实现中发现需求不可行 | 主动提出回退到 clarify/breakdown 重新确认 |
 | 用户未明确确认 | **不推进到下一阶段**，保持当前阶段等待确认或修改 |
 | 目标分支无 master/main | 报错并停止，提示用户创建目标分支 |
-| feature branch 或 worktree 已存在 | 报错并提示用户更换 feature 名称 |
+| feature branch 或开发环境副本已存在 | 报错并提示用户更换 feature 名称 |
 | 合并验证发现冲突 | 停止流程，提示人工解决，不允许自动覆盖 |
-| worktree 清理失败 | 给出明确提示，由用户手动处理 |
+| 开发环境副本清理失败 | 给出明确提示，由用户手动处理 |
 
 ---
 
@@ -607,8 +633,8 @@ git worktree remove .claude/worktrees/devflow-<feature>
 
 - 各阶段内部模板位于 `skills/*/references/` 目录
 - 原 6 个 skill 文件保留在 `skills/` 目录中供高级用户参考，但不再作为独立命令暴露
-- git worktree 文档：`git help worktree`
+- Git 文档：`git help`
 
 ---
 
-*DevFlow v2.3 — 单一入口，worktree 隔离，合并验证，闭环管理。*
+*DevFlow v2.4 — 单一入口，完整副本隔离，合并验证，闭环管理。*
