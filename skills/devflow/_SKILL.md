@@ -2,6 +2,7 @@
 name: devflow
 description: DevFlow v3.0 — AI 开发规范流程，单一入口，按阶段推进完整开发流程。基于 git worktree 会话隔离与强制合并验证，防止多 feature 并行开发时的冲突与语义回归。
 argument-hint: [模糊需求描述]
+allowed-tools: [Read, Write, Glob, Grep, Bash, Edit, Agent, TaskCreate, WebSearch, WebFetch, LSP, Skill]
 ---
 
 # /devflow — DevFlow v3.0

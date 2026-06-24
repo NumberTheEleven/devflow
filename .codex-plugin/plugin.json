@@ -1,7 +1,7 @@
 {
   "name": "devflow",
-  "version": "2.4.0",
-  "description": "Structured AI-assisted development workflow — from project discovery to verification. Single entry point /devflow guides you through requirements, design, implementation, and testing with full-chain numbered tracking. Uses full-repo copy isolation for concurrent feature development and mandatory merge validation to catch conflicts and semantic regressions.",
+  "version": "3.0.0",
+  "description": "Structured AI-assisted development workflow — from project discovery to verification. Single entry point /devflow guides you through requirements, design, implementation, and testing with full-chain numbered tracking. Uses native git worktree session isolation for concurrent feature development with mandatory merge validation to catch conflicts and semantic regressions.",
   "author": {
     "name": "NumberTheEleven",
     "email": "numtheeleven@gmail.com"
@@ -15,13 +15,14 @@
     "verification",
     "visual-regression",
     "playwright",
-    "git"
+    "git",
+    "worktree"
   ],
   "skills": "./skills/",
   "interface": {
     "displayName": "DevFlow",
     "shortDescription": "AI dev workflow: clarify -> breakdown -> blueprint -> implement -> verify",
-    "longDescription": "DevFlow v2.4 — AI 开发规范流程，单一入口，按阶段推进，闭环管理。输入 /devflow + 模糊需求，自动走完需求澄清、需求拆解、方案蓝图、编码实现、测试验证五个阶段。支持完整副本会话隔离，允许同一用户同时推进多个 feature 而互不干扰；完成前强制合并验证，检测目标分支新变更并验证涉及 feat 的测试用例，防止冲突与语义回归。每个阶段 checkpoint 可继续/跳转/暂停。支持 L1 烟雾扫描 + L2 Playwright 交互验证 + L3 结构化手工验证的三层验证体系，并新增 AI 视觉审查能力：通过 Playwright 截图 + AI 视觉分析自动捕获 UI 重叠、遮挡、溢出、截断等前端展示问题。验证深度评分 + 证据驱动，拒绝虚假通过。",
+    "longDescription": "DevFlow v3.0 — AI 开发规范流程，单一入口，按阶段推进，闭环管理。输入 /devflow + 模糊需求，自动走完需求澄清、需求拆解、方案蓝图、编码实现、测试验证五个阶段。基于 git worktree 会话隔离（秒级创建，原生 EnterWorktree 切换 CWD，每 phase CWD 守卫），允许同一用户同时推进多个 feature 而互不干扰；完成前强制合并验证，检测目标分支新变更并验证涉及 feat 的测试用例，防止冲突与语义回归。每个阶段 checkpoint 可继续/跳转/暂停。支持 L1 烟雾扫描 + L2 Playwright 交互验证 + L3 结构化手工验证的三层验证体系，并新增 AI 视觉审查能力：通过 Playwright 截图 + AI 视觉分析自动捕获 UI 重叠、遮挡、溢出、截断等前端展示问题。验证深度评分 + 证据驱动，拒绝虚假通过。v3.0 同时向后兼容识别 v2.4 全量副本目录，存量会话可继续使用。",
     "developerName": "NumberTheEleven",
     "category": "Developer Tools",
     "capabilities": [
