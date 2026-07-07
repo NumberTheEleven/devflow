@@ -415,19 +415,45 @@ data/fixtures/
 
 #### CWD 守卫
 
-进入本 Phase 前，确认当前 CWD 是否在 `devflow/<feature>/state.json` 中 `isolation.path` 指定的 worktree 内：
+进入本 Phase 前，确认当前 CWD 是否在 `devflow/<feature>/state.json` 中 `isolation.path` 指定的工作目录内，且当前分支符合 `isolation.branch`：
 ```bash
 # Unix
+MODE=$(jq -r '.isolation.mode // "worktree"' devflow/<feature>/state.json 2>/dev/null)
 EXPECTED=$(jq -r .isolation.path devflow/<feature>/state.json 2>/dev/null)
-[ "$(pwd -P)" != "$(cd "$EXPECTED" 2>/dev/null && pwd -P)" ] && echo "WARN: 当前不在 worktree 内" || echo "OK"
+EXPECTED_BRANCH=$(jq -r .isolation.branch devflow/<feature>/state.json 2>/dev/null)
+
+if [ "$MODE" = "worktree" ]; then
+  [ "$(pwd -P)" = "$(cd "$EXPECTED" 2>/dev/null && pwd -P)" ] && echo "OK" || echo "WARN: 当前不在 worktree 内"
+elif [ "$MODE" = "feat-branch" ] || [ "$MODE" = "main-branch" ]; then
+  CURRENT_BRANCH=$(git branch --show-current 2>/dev/null)
+  if [ "$(pwd -P)" = "$(cd "$EXPECTED" 2>/dev/null && pwd -P)" ] && [ "$CURRENT_BRANCH" = "$EXPECTED_BRANCH" ]; then
+    echo "OK"
+  else
+    echo "WARN: 当前不在主仓库正确分支内（期望分支: $EXPECTED_BRANCH）"
+  fi
+fi
 
 # Windows PowerShell
 $state = Get-Content "devflow/<feature>/state.json" -Raw | ConvertFrom-Json
-$expected = (Resolve-Path $state.isolation.path).Path
-if ($PWD.Path -ne $expected) { Write-Host "WARN: 当前不在 worktree 内" } else { Write-Host "OK" }
+$mode = $state.isolation.mode ?? "worktree"
+$expected = (Resolve-Path $state.isolation.path -ErrorAction SilentlyContinue).Path
+$expectedBranch = $state.isolation.branch
+
+if ($mode -eq "worktree") {
+  if ($PWD.Path -eq $expected) { Write-Host "OK" } else { Write-Host "WARN: 当前不在 worktree 内" }
+} elseif ($mode -in @("feat-branch", "main-branch")) {
+  $currentBranch = git branch --show-current 2>$null
+  if ($PWD.Path -eq $expected -and $currentBranch -eq $expectedBranch) {
+    Write-Host "OK"
+  } else {
+    Write-Host "WARN: 当前不在主仓库正确分支内（期望分支: $expectedBranch）"
+  }
+}
 ```
 - 检测为 OK：正常继续
-- 检测到 WARN：尝试 `EnterWorktree path="<isolation.path>"` 恢复 CWD；如不可用，提示用户确认并执行 `cd` 恢复
+- **worktree 模式且检测到 WARN**：尝试 `EnterWorktree path="<isolation.path>"`；如不可用，提示用户确认并执行 `cd` 恢复
+- **feat 模式且检测到 WARN**：提示用户执行 `git checkout <feature>` 并 `cd <main-repo-root>`
+- **main 模式且检测到 WARN**：提示用户执行 `git checkout <target-branch>` 并 `cd <main-repo-root>`
 
 ### 2.1 流程
 
@@ -470,19 +496,45 @@ if ($PWD.Path -ne $expected) { Write-Host "WARN: 当前不在 worktree 内" } el
 
 #### CWD 守卫
 
-进入本 Phase 前，确认当前 CWD 是否在 `devflow/<feature>/state.json` 中 `isolation.path` 指定的 worktree 内：
+进入本 Phase 前，确认当前 CWD 是否在 `devflow/<feature>/state.json` 中 `isolation.path` 指定的工作目录内，且当前分支符合 `isolation.branch`：
 ```bash
 # Unix
+MODE=$(jq -r '.isolation.mode // "worktree"' devflow/<feature>/state.json 2>/dev/null)
 EXPECTED=$(jq -r .isolation.path devflow/<feature>/state.json 2>/dev/null)
-[ "$(pwd -P)" != "$(cd "$EXPECTED" 2>/dev/null && pwd -P)" ] && echo "WARN: 当前不在 worktree 内" || echo "OK"
+EXPECTED_BRANCH=$(jq -r .isolation.branch devflow/<feature>/state.json 2>/dev/null)
+
+if [ "$MODE" = "worktree" ]; then
+  [ "$(pwd -P)" = "$(cd "$EXPECTED" 2>/dev/null && pwd -P)" ] && echo "OK" || echo "WARN: 当前不在 worktree 内"
+elif [ "$MODE" = "feat-branch" ] || [ "$MODE" = "main-branch" ]; then
+  CURRENT_BRANCH=$(git branch --show-current 2>/dev/null)
+  if [ "$(pwd -P)" = "$(cd "$EXPECTED" 2>/dev/null && pwd -P)" ] && [ "$CURRENT_BRANCH" = "$EXPECTED_BRANCH" ]; then
+    echo "OK"
+  else
+    echo "WARN: 当前不在主仓库正确分支内（期望分支: $EXPECTED_BRANCH）"
+  fi
+fi
 
 # Windows PowerShell
 $state = Get-Content "devflow/<feature>/state.json" -Raw | ConvertFrom-Json
-$expected = (Resolve-Path $state.isolation.path).Path
-if ($PWD.Path -ne $expected) { Write-Host "WARN: 当前不在 worktree 内" } else { Write-Host "OK" }
+$mode = $state.isolation.mode ?? "worktree"
+$expected = (Resolve-Path $state.isolation.path -ErrorAction SilentlyContinue).Path
+$expectedBranch = $state.isolation.branch
+
+if ($mode -eq "worktree") {
+  if ($PWD.Path -eq $expected) { Write-Host "OK" } else { Write-Host "WARN: 当前不在 worktree 内" }
+} elseif ($mode -in @("feat-branch", "main-branch")) {
+  $currentBranch = git branch --show-current 2>$null
+  if ($PWD.Path -eq $expected -and $currentBranch -eq $expectedBranch) {
+    Write-Host "OK"
+  } else {
+    Write-Host "WARN: 当前不在主仓库正确分支内（期望分支: $expectedBranch）"
+  }
+}
 ```
 - 检测为 OK：正常继续
-- 检测到 WARN：尝试 `EnterWorktree path="<isolation.path>"` 恢复 CWD；如不可用，提示用户确认并执行 `cd` 恢复
+- **worktree 模式且检测到 WARN**：尝试 `EnterWorktree path="<isolation.path>"`；如不可用，提示用户确认并执行 `cd` 恢复
+- **feat 模式且检测到 WARN**：提示用户执行 `git checkout <feature>` 并 `cd <main-repo-root>`
+- **main 模式且检测到 WARN**：提示用户执行 `git checkout <target-branch>` 并 `cd <main-repo-root>`
 
 ### 3.1 流程
 
@@ -517,19 +569,45 @@ if ($PWD.Path -ne $expected) { Write-Host "WARN: 当前不在 worktree 内" } el
 
 #### CWD 守卫
 
-进入本 Phase 前，确认当前 CWD 是否在 `devflow/<feature>/state.json` 中 `isolation.path` 指定的 worktree 内：
+进入本 Phase 前，确认当前 CWD 是否在 `devflow/<feature>/state.json` 中 `isolation.path` 指定的工作目录内，且当前分支符合 `isolation.branch`：
 ```bash
 # Unix
+MODE=$(jq -r '.isolation.mode // "worktree"' devflow/<feature>/state.json 2>/dev/null)
 EXPECTED=$(jq -r .isolation.path devflow/<feature>/state.json 2>/dev/null)
-[ "$(pwd -P)" != "$(cd "$EXPECTED" 2>/dev/null && pwd -P)" ] && echo "WARN: 当前不在 worktree 内" || echo "OK"
+EXPECTED_BRANCH=$(jq -r .isolation.branch devflow/<feature>/state.json 2>/dev/null)
+
+if [ "$MODE" = "worktree" ]; then
+  [ "$(pwd -P)" = "$(cd "$EXPECTED" 2>/dev/null && pwd -P)" ] && echo "OK" || echo "WARN: 当前不在 worktree 内"
+elif [ "$MODE" = "feat-branch" ] || [ "$MODE" = "main-branch" ]; then
+  CURRENT_BRANCH=$(git branch --show-current 2>/dev/null)
+  if [ "$(pwd -P)" = "$(cd "$EXPECTED" 2>/dev/null && pwd -P)" ] && [ "$CURRENT_BRANCH" = "$EXPECTED_BRANCH" ]; then
+    echo "OK"
+  else
+    echo "WARN: 当前不在主仓库正确分支内（期望分支: $EXPECTED_BRANCH）"
+  fi
+fi
 
 # Windows PowerShell
 $state = Get-Content "devflow/<feature>/state.json" -Raw | ConvertFrom-Json
-$expected = (Resolve-Path $state.isolation.path).Path
-if ($PWD.Path -ne $expected) { Write-Host "WARN: 当前不在 worktree 内" } else { Write-Host "OK" }
+$mode = $state.isolation.mode ?? "worktree"
+$expected = (Resolve-Path $state.isolation.path -ErrorAction SilentlyContinue).Path
+$expectedBranch = $state.isolation.branch
+
+if ($mode -eq "worktree") {
+  if ($PWD.Path -eq $expected) { Write-Host "OK" } else { Write-Host "WARN: 当前不在 worktree 内" }
+} elseif ($mode -in @("feat-branch", "main-branch")) {
+  $currentBranch = git branch --show-current 2>$null
+  if ($PWD.Path -eq $expected -and $currentBranch -eq $expectedBranch) {
+    Write-Host "OK"
+  } else {
+    Write-Host "WARN: 当前不在主仓库正确分支内（期望分支: $expectedBranch）"
+  }
+}
 ```
 - 检测为 OK：正常继续
-- 检测到 WARN：尝试 `EnterWorktree path="<isolation.path>"` 恢复 CWD；如不可用，提示用户确认并执行 `cd` 恢复
+- **worktree 模式且检测到 WARN**：尝试 `EnterWorktree path="<isolation.path>"`；如不可用，提示用户确认并执行 `cd` 恢复
+- **feat 模式且检测到 WARN**：提示用户执行 `git checkout <feature>` 并 `cd <main-repo-root>`
+- **main 模式且检测到 WARN**：提示用户执行 `git checkout <target-branch>` 并 `cd <main-repo-root>`
 
 ### 4.1 流程
 
@@ -581,19 +659,45 @@ if ($PWD.Path -ne $expected) { Write-Host "WARN: 当前不在 worktree 内" } el
 
 #### CWD 守卫
 
-进入本 Phase 前，确认当前 CWD 是否在 `devflow/<feature>/state.json` 中 `isolation.path` 指定的 worktree 内：
+进入本 Phase 前，确认当前 CWD 是否在 `devflow/<feature>/state.json` 中 `isolation.path` 指定的工作目录内，且当前分支符合 `isolation.branch`：
 ```bash
 # Unix
+MODE=$(jq -r '.isolation.mode // "worktree"' devflow/<feature>/state.json 2>/dev/null)
 EXPECTED=$(jq -r .isolation.path devflow/<feature>/state.json 2>/dev/null)
-[ "$(pwd -P)" != "$(cd "$EXPECTED" 2>/dev/null && pwd -P)" ] && echo "WARN: 当前不在 worktree 内" || echo "OK"
+EXPECTED_BRANCH=$(jq -r .isolation.branch devflow/<feature>/state.json 2>/dev/null)
+
+if [ "$MODE" = "worktree" ]; then
+  [ "$(pwd -P)" = "$(cd "$EXPECTED" 2>/dev/null && pwd -P)" ] && echo "OK" || echo "WARN: 当前不在 worktree 内"
+elif [ "$MODE" = "feat-branch" ] || [ "$MODE" = "main-branch" ]; then
+  CURRENT_BRANCH=$(git branch --show-current 2>/dev/null)
+  if [ "$(pwd -P)" = "$(cd "$EXPECTED" 2>/dev/null && pwd -P)" ] && [ "$CURRENT_BRANCH" = "$EXPECTED_BRANCH" ]; then
+    echo "OK"
+  else
+    echo "WARN: 当前不在主仓库正确分支内（期望分支: $EXPECTED_BRANCH）"
+  fi
+fi
 
 # Windows PowerShell
 $state = Get-Content "devflow/<feature>/state.json" -Raw | ConvertFrom-Json
-$expected = (Resolve-Path $state.isolation.path).Path
-if ($PWD.Path -ne $expected) { Write-Host "WARN: 当前不在 worktree 内" } else { Write-Host "OK" }
+$mode = $state.isolation.mode ?? "worktree"
+$expected = (Resolve-Path $state.isolation.path -ErrorAction SilentlyContinue).Path
+$expectedBranch = $state.isolation.branch
+
+if ($mode -eq "worktree") {
+  if ($PWD.Path -eq $expected) { Write-Host "OK" } else { Write-Host "WARN: 当前不在 worktree 内" }
+} elseif ($mode -in @("feat-branch", "main-branch")) {
+  $currentBranch = git branch --show-current 2>$null
+  if ($PWD.Path -eq $expected -and $currentBranch -eq $expectedBranch) {
+    Write-Host "OK"
+  } else {
+    Write-Host "WARN: 当前不在主仓库正确分支内（期望分支: $expectedBranch）"
+  }
+}
 ```
 - 检测为 OK：正常继续
-- 检测到 WARN：尝试 `EnterWorktree path="<isolation.path>"` 恢复 CWD；如不可用，提示用户确认并执行 `cd` 恢复
+- **worktree 模式且检测到 WARN**：尝试 `EnterWorktree path="<isolation.path>"`；如不可用，提示用户确认并执行 `cd` 恢复
+- **feat 模式且检测到 WARN**：提示用户执行 `git checkout <feature>` 并 `cd <main-repo-root>`
+- **main 模式且检测到 WARN**：提示用户执行 `git checkout <target-branch>` 并 `cd <main-repo-root>`
 
 ### 5.1 流程
 
