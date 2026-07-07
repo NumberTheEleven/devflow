@@ -1310,6 +1310,26 @@ git push origin <target-branch>
 | git push --force | **绝对禁止。** 任何情况下不允许使用 |
 | worktree 清理失败 | 给出明确提示，由用户手动处理 |
 
+### 旧会话兼容
+
+- 现有 v3.0 `state.json` 若缺少 `isolation.mode` 字段，恢复时默认视为 `worktree`
+- v2.4 全量副本会话（`isolation.type == "fullcopy"`）仍按原有 v2.4 兼容逻辑处理，不受本模式选择影响
+
+### 模式间迁移（按需执行）
+
+当用户明确提出切换模式时，AI 可协助执行：
+
+| 源模式 | 目标模式 | 操作步骤 |
+|--------|----------|----------|
+| main | feat | `git stash` → `git checkout -b <feature>` → `git stash pop` → 更新 `state.json` 的 `isolation.mode`/`branch`/`path` |
+| feat | main | `git reset --soft HEAD~N`（N 为本次会话产生的 commit 数）→ `git stash` → `git checkout <target-branch>` → `git stash pop` → 更新 `state.json` |
+| main | worktree | `git stash` → `git checkout -b <feature>` → `git worktree add .claude/worktrees/devflow-<feature> <feature>` → `EnterWorktree` → `git stash pop` → 更新 `state.json` |
+| worktree | main | 在 worktree 中 `git reset --soft HEAD~N`（N 为本次会话产生的 commit 数）→ `git stash` → 切回主仓库 `git checkout <target-branch>` → `git stash pop` → 更新 `state.json` |
+| feat | worktree | 在 feat 分支上 `git worktree add .claude/worktrees/devflow-<feature> <feature>` → `EnterWorktree` → 复制 `devflow/<feature>/` 跟踪文件到 worktree → 更新 `state.json` |
+| worktree | feat | 切回主仓库 `git checkout <feature>` → 复制 worktree 中的 `devflow/<feature>/` 跟踪文件到主仓库 → 更新 `state.json` |
+
+迁移不是主流程功能，仅应用户明确要求时执行。迁移后必须重新做 CWD 守卫验证。
+
 ---
 
 ## 参考
