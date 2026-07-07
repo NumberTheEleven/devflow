@@ -276,6 +276,7 @@ data/fixtures/
   "requirements_confirmed": true,
   "open_questions": ["<待澄清项>"],
   "isolation": {
+    "mode": "worktree",
     "type": "worktree",
     "path": ".claude/worktrees/devflow-<feature>",
     "branch": "<feature>",
@@ -950,6 +951,7 @@ rm -rf .claude/worktrees/devflow-<feature>
   "created_at": "2026-06-24T14:30:00+08:00",
   "version": "3.0",
   "isolation": {
+    "mode": "worktree",
     "type": "worktree",
     "path": ".claude/worktrees/devflow-user-auth",
     "branch": "user-auth",
@@ -974,6 +976,8 @@ rm -rf .claude/worktrees/devflow-<feature>
 - `rollback_history` 记录回退历史，便于追踪
 - `isolation` 记录 worktree 元数据（v3.0 新增），Phase 6.5 清理时读取
 - 恢复时读取 `phase`，跳转到对应阶段入口
+
+> `mode` 是路由 key，决定初始化、CWD 守卫和 Phase 6 收尾行为。旧 state.json 无 `mode` 字段时默认视为 `worktree`。
 
 ---
 
