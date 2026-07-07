@@ -90,6 +90,8 @@ $inV24Copy = ($PWD.Path -like '*/.claude/worktrees/devflow-*' -or $PWD.Path -lik
 
 注意：`IN_WORKTREE=true` 时 `IN_V24_COPY` 一定为 `false`（v3.0 worktree 目录名虽然形如 `.claude/worktrees/devflow-*`，但路径前缀检测仅作为兜底，主判定以 git 拓扑为准）。
 
+> 判定处于主仓库时，还需检查 0.4.1，防止多个 main 模式会话同时运行。
+
 ### 0.4 检测是否有活跃会话
 
 检查主仓库根目录下是否存在未完成的旧版 `devflow/state.json`（仅在判定处于主仓库时执行）：
@@ -101,6 +103,25 @@ $inV24Copy = ($PWD.Path -like '*/.claude/worktrees/devflow-*' -or $PWD.Path -lik
 - **不存在或 `phase` 为 `"completed"`：**
   - 如果没有传入需求描述，询问用户要做什么
   - 如果传入了需求描述，进入 Phase 1（需求澄清）
+
+### 0.4.1 检查是否已有未完成的 main 模式会话
+
+仅在判定处于主仓库时执行。遍历 `devflow/*/` 下所有 `state.json`：
+
+```bash
+# 伪代码
+for dir in devflow/*/; do
+  mode=$(jq -r '.isolation.mode // "worktree"' "$dir/state.json" 2>/dev/null)
+  phase=$(jq -r '.phase' "$dir/state.json" 2>/dev/null)
+  if [ "$mode" = "main-branch" ] && [ "$phase" != "completed" ]; then
+    echo "检测到未完成的 main 模式会话（feature: <feature>，当前阶段：$phase）。同一时刻只能有一个 main 模式会话。"
+    exit 1
+  fi
+done
+```
+
+- 存在未完成的 main 模式会话：报错并停止，提示用户完成或标记完成后开始新会话
+- 不存在：继续原有 0.4 逻辑
 
 ### 0.5 管理命令说明
 
