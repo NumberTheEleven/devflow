@@ -138,8 +138,10 @@ done
 ```bash
 # 伪代码
 for dir in devflow/*/; do
-  mode=$(jq -r '.isolation.mode // "worktree"' "$dir/state.json" 2>/dev/null)
-  phase=$(jq -r '.phase' "$dir/state.json" 2>/dev/null)
+  state_file="$dir/state.json"
+  [ -f "$state_file" ] || continue
+  mode=$(jq -r '.isolation.mode // "worktree"' "$state_file" 2>/dev/null)
+  phase=$(jq -r '.phase' "$state_file" 2>/dev/null)
   if [ "$mode" = "main-branch" ] && [ "$phase" != "completed" ]; then
     feature=$(basename "$dir")
     echo "检测到未完成的 main 模式会话（feature: $feature，当前阶段：$phase）。同一时刻只能有一个 main 模式会话。"
@@ -243,7 +245,7 @@ Phase 1.4: 按模式初始化会话
 
 ### 1.4 初始化会话
 
-Feature 名称确认且模式选择完成后，按所选模式初始化会话。三种模式共享前置步骤 1.4.1 和 1.4.2。1.4.6 为 feat/main 模式的工作区状态提示，worktree 模式跳过。之后进入各自的初始化路径：1.4.3（worktree）、1.4.4（feat）、1.4.5（main）。最终通过 `state.json` 中的 `isolation.mode` 记录所选模式。
+Feature 名称确认且模式选择完成后，按所选模式初始化会话。三种模式共享前置步骤 1.4.1 和 1.4.2。1.4.3 为 feat/main 模式的工作区状态提示，worktree 模式跳过。之后进入各自的初始化路径：1.4.4（worktree）、1.4.5（feat）、1.4.6（main）。最终通过 `state.json` 中的 `isolation.mode` 记录所选模式。
 
 #### 1.4.1 自动识别目标分支
 
@@ -266,7 +268,7 @@ Feature 名称确认且模式选择完成后，按所选模式初始化会话。
 
 - **main 模式**：Step 0 已检查未完成的 main 模式会话，此处不再重复
 
-#### 1.4.6 工作区状态提示（feat/main 模式专用）
+#### 1.4.3 工作区状态提示（feat/main 模式专用）
 
 因为 feat/main 模式直接修改主仓库工作区，初始化前检查：
 
@@ -282,7 +284,7 @@ git status --short
 
 worktree 模式不需要此检查。
 
-#### 1.4.3 worktree 模式初始化
+#### 1.4.4 worktree 模式初始化
 
 执行当前 v3.0 的初始化流程：
 
@@ -307,7 +309,7 @@ EnterWorktree path=".claude/worktrees/devflow-<feature>"
 }
 ```
 
-#### 1.4.4 feat 分支模式初始化
+#### 1.4.5 feat 分支模式初始化
 
 ```bash
 git checkout -b <feature> <target-branch>
@@ -326,7 +328,7 @@ git checkout -b <feature> <target-branch>
 }
 ```
 
-#### 1.4.5 main 分支模式初始化
+#### 1.4.6 main 分支模式初始化
 
 ```bash
 git checkout <target-branch>
@@ -950,7 +952,7 @@ git merge-base <target-branch> <feature>
 git log --merges --first-parent <base-commit>..<target-branch>
 ```
 
-- **无新 merge commit：** 跳过 6.3.1.5 ~ 6.3.1.7，直接进入 6.3.2 预完成提交（如尚未执行）或 6.3.3 合并 feature 到 target。
+- **无新 merge commit：** 跳过 6.3.1.5 ~ 6.3.1.7，直接进入 6.3.3 合并 feature 到 target。
 - **有新 merge commit：** 进入 6.3.1.5 涉及 feat 验证。
 
 #### 6.3.1.5 涉及 feat 验证
