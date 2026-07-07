@@ -1,9 +1,9 @@
 {
   "name": "devflow",
-  "description": "Structured AI-assisted development workflow — from project discovery to verification. Single entry point /devflow guides you through requirements, design, implementation, and testing with full-chain numbered tracking. Uses native git worktree session isolation for concurrent feature development with mandatory merge validation to catch conflicts and semantic regressions.",
+  "description": "Structured AI-assisted development workflow — from project discovery to verification. Single entry point /devflow guides you through requirements, design, implementation, and testing with full-chain numbered tracking. Supports three startup modes: git worktree isolation, feat branch development, and main branch development.",
   "author": {
     "name": "NumberTheEleven",
     "email": "numtheeleven@gmail.com"
   },
-  "version": "3.0.0"
+  "version": "3.1.0"
 }
