@@ -1,6 +1,6 @@
 ---
 name: devflow
-description: DevFlow v3.0 — AI 开发规范流程，单一入口，按阶段推进完整开发流程。基于 git worktree 会话隔离与强制合并验证，防止多 feature 并行开发时的冲突与语义回归。
+description: DevFlow v3.0 — AI 开发规范流程，单一入口，按阶段推进完整开发流程。支持 git worktree / feat 分支 / main 分支三种开发模式，强制合并验证，防止多 feature 并行开发时的冲突与语义回归。
 argument-hint: [模糊需求描述]
 ---
 
@@ -23,7 +23,7 @@ Phase 4: 编码实现 (implement) → T-xxx 任务 + 架构图 + 代码
     ↓ checkpoint（显式确认）
 Phase 5: 测试验证 (verify) → L1烟雾 + L2交互 + L3手工，证据驱动
     ↓ checkpoint（人工验收）
-Phase 6: 流程完成 → 合并验证 + 提交 + worktree 清理
+Phase 6: 流程完成 → 合并验证 + 提交 + 按模式清理
 ```
 
 **核心原则：**
@@ -114,7 +114,8 @@ for dir in devflow/*/; do
   mode=$(jq -r '.isolation.mode // "worktree"' "$dir/state.json" 2>/dev/null)
   phase=$(jq -r '.phase' "$dir/state.json" 2>/dev/null)
   if [ "$mode" = "main-branch" ] && [ "$phase" != "completed" ]; then
-    echo "检测到未完成的 main 模式会话（feature: <feature>，当前阶段：$phase）。同一时刻只能有一个 main 模式会话。"
+    feature=$(basename "$dir")
+    echo "检测到未完成的 main 模式会话（feature: $feature，当前阶段：$phase）。同一时刻只能有一个 main 模式会话。"
     exit 1
   fi
 done
@@ -185,7 +186,7 @@ Phase 1.4: 按模式初始化会话
 
 > 需求已确认。请选择本次开发模式：
 > 1. **worktree 分支分库开发**（推荐）：创建独立 worktree，完全隔离，适合改动大的 feature（当前 v3.0 默认）
-> 2. **feat 分支开发**：在主仓库中创建 feat/* 分支直接开发，不创建 worktree，避免 worktree 环境/端口问题
+> 2. **feat 分支开发**：在主仓库中创建 feature 分支直接开发，不创建 worktree，避免 worktree 环境/端口问题
 > 3. **main 分支开发**：直接在 main/master 上开发，不创建分支和 worktree，适合极小改动或紧急修复
 >
 > 回复数字或名称选择。
@@ -207,7 +208,7 @@ Phase 1.4: 按模式初始化会话
 
 - 使用英文小写 + 连字符（如 `user-auth`、`payment-flow`、`fix-login-timeout`）
 - 4 个词以内，描述性强
-- 用于分支名（`feat/<feature>` 或 worktree 分支名）和 `devflow/<feature>/` 目录名
+- 用于分支名（`feature` 分支名或 worktree 分支名）和 `devflow/<feature>/` 目录名
 
 向用户确认："基于需求，feature 名称建议为 `xxx`，可以吗？"
 
@@ -215,7 +216,7 @@ Phase 1.4: 按模式初始化会话
 
 ### 1.4 初始化会话
 
-Feature 名称确认且模式选择完成后，按所选模式初始化会话。三种模式共享前置步骤 1.4.1 和 1.4.2，之后进入各自的初始化路径。最终通过 `state.json` 中的 `isolation.mode` 记录所选模式。
+Feature 名称确认且模式选择完成后，按所选模式初始化会话。三种模式共享前置步骤 1.4.1、1.4.2 和 1.4.6（工作区状态提示），之后进入各自的初始化路径：1.4.3（worktree）、1.4.4（feat）、1.4.5（main）。最终通过 `state.json` 中的 `isolation.mode` 记录所选模式。
 
 #### 1.4.1 自动识别目标分支
 
@@ -238,12 +239,28 @@ Feature 名称确认且模式选择完成后，按所选模式初始化会话。
 
 - **main 模式**：Step 0 已检查未完成的 main 模式会话，此处不再重复
 
+#### 1.4.6 工作区状态提示（feat/main 模式专用）
+
+因为 feat/main 模式直接修改主仓库工作区，初始化前检查：
+
+```bash
+git status --short
+```
+
+- **无未提交变更**：直接继续
+- **存在未提交变更**：提示但不阻塞：
+  > "检测到工作区存在未提交变更。若继续，这些变更将被纳入本次 DevFlow 会话的开发范围。是否继续？
+  > - 回复 **继续**：开始本次会话
+  > - 回复 **清理**：请先 stash / commit / 丢弃变更后再开始"
+
+worktree 模式不需要此检查。
+
 #### 1.4.3 worktree 模式初始化
 
 执行当前 v3.0 的初始化流程：
 
 ```bash
-git checkout -b <feature>
+git checkout -b <feature> <target-branch>
 git checkout <target-branch>
 git worktree add .claude/worktrees/devflow-<feature> <feature>
 EnterWorktree path=".claude/worktrees/devflow-<feature>"
@@ -266,7 +283,7 @@ EnterWorktree path=".claude/worktrees/devflow-<feature>"
 #### 1.4.4 feat 分支模式初始化
 
 ```bash
-git checkout -b <feature>
+git checkout -b <feature> <target-branch>
 ```
 
 不创建 worktree，留在主仓库当前目录。`devflow/<feature>/` 目录创建在主仓库中。
@@ -300,22 +317,6 @@ git checkout <target-branch>
   "target_branch": "<target-branch>"
 }
 ```
-
-#### 1.4.6 工作区状态提示（feat/main 模式专用）
-
-因为 feat/main 模式直接修改主仓库工作区，初始化前检查：
-
-```bash
-git status --short
-```
-
-- **无未提交变更**：直接继续
-- **存在未提交变更**：提示但不阻塞：
-  > "检测到工作区存在未提交变更。若继续，这些变更将被纳入本次 DevFlow 会话的开发范围。是否继续？
-  > - 回复 **继续**：开始本次会话
-  > - 回复 **清理**：请先 stash / commit / 丢弃变更后再开始"
-
-worktree 模式不需要此检查。
 
 #### 1.4.7 补充运行时环境（策略菜单）
 
@@ -425,11 +426,12 @@ EXPECTED_BRANCH=$(jq -r .isolation.branch devflow/<feature>/state.json 2>/dev/nu
 if [ "$MODE" = "worktree" ]; then
   [ "$(pwd -P)" = "$(cd "$EXPECTED" 2>/dev/null && pwd -P)" ] && echo "OK" || echo "WARN: 当前不在 worktree 内"
 elif [ "$MODE" = "feat-branch" ] || [ "$MODE" = "main-branch" ]; then
+  REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
   CURRENT_BRANCH=$(git branch --show-current 2>/dev/null)
-  if [ "$(pwd -P)" = "$(cd "$EXPECTED" 2>/dev/null && pwd -P)" ] && [ "$CURRENT_BRANCH" = "$EXPECTED_BRANCH" ]; then
+  if [ "$(pwd -P)" = "$REPO_ROOT" ] && [ "$CURRENT_BRANCH" = "$EXPECTED_BRANCH" ]; then
     echo "OK"
   else
-    echo "WARN: 当前不在主仓库正确分支内（期望分支: $EXPECTED_BRANCH）"
+    echo "WARN: 当前不在主仓库根目录或分支不匹配"
   fi
 fi
 
@@ -442,11 +444,12 @@ $expectedBranch = $state.isolation.branch
 if ($mode -eq "worktree") {
   if ($PWD.Path -eq $expected) { Write-Host "OK" } else { Write-Host "WARN: 当前不在 worktree 内" }
 } elseif ($mode -in @("feat-branch", "main-branch")) {
+  $repoRoot = (git rev-parse --show-toplevel 2>$null | Out-String).Trim()
   $currentBranch = git branch --show-current 2>$null
-  if ($PWD.Path -eq $expected -and $currentBranch -eq $expectedBranch) {
+  if ($PWD.Path -eq $repoRoot -and $currentBranch -eq $expectedBranch) {
     Write-Host "OK"
   } else {
-    Write-Host "WARN: 当前不在主仓库正确分支内（期望分支: $expectedBranch）"
+    Write-Host "WARN: 当前不在主仓库根目录或分支不匹配"
   }
 }
 ```
@@ -506,11 +509,12 @@ EXPECTED_BRANCH=$(jq -r .isolation.branch devflow/<feature>/state.json 2>/dev/nu
 if [ "$MODE" = "worktree" ]; then
   [ "$(pwd -P)" = "$(cd "$EXPECTED" 2>/dev/null && pwd -P)" ] && echo "OK" || echo "WARN: 当前不在 worktree 内"
 elif [ "$MODE" = "feat-branch" ] || [ "$MODE" = "main-branch" ]; then
+  REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
   CURRENT_BRANCH=$(git branch --show-current 2>/dev/null)
-  if [ "$(pwd -P)" = "$(cd "$EXPECTED" 2>/dev/null && pwd -P)" ] && [ "$CURRENT_BRANCH" = "$EXPECTED_BRANCH" ]; then
+  if [ "$(pwd -P)" = "$REPO_ROOT" ] && [ "$CURRENT_BRANCH" = "$EXPECTED_BRANCH" ]; then
     echo "OK"
   else
-    echo "WARN: 当前不在主仓库正确分支内（期望分支: $EXPECTED_BRANCH）"
+    echo "WARN: 当前不在主仓库根目录或分支不匹配"
   fi
 fi
 
@@ -523,11 +527,12 @@ $expectedBranch = $state.isolation.branch
 if ($mode -eq "worktree") {
   if ($PWD.Path -eq $expected) { Write-Host "OK" } else { Write-Host "WARN: 当前不在 worktree 内" }
 } elseif ($mode -in @("feat-branch", "main-branch")) {
+  $repoRoot = (git rev-parse --show-toplevel 2>$null | Out-String).Trim()
   $currentBranch = git branch --show-current 2>$null
-  if ($PWD.Path -eq $expected -and $currentBranch -eq $expectedBranch) {
+  if ($PWD.Path -eq $repoRoot -and $currentBranch -eq $expectedBranch) {
     Write-Host "OK"
   } else {
-    Write-Host "WARN: 当前不在主仓库正确分支内（期望分支: $expectedBranch）"
+    Write-Host "WARN: 当前不在主仓库根目录或分支不匹配"
   }
 }
 ```
@@ -579,11 +584,12 @@ EXPECTED_BRANCH=$(jq -r .isolation.branch devflow/<feature>/state.json 2>/dev/nu
 if [ "$MODE" = "worktree" ]; then
   [ "$(pwd -P)" = "$(cd "$EXPECTED" 2>/dev/null && pwd -P)" ] && echo "OK" || echo "WARN: 当前不在 worktree 内"
 elif [ "$MODE" = "feat-branch" ] || [ "$MODE" = "main-branch" ]; then
+  REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
   CURRENT_BRANCH=$(git branch --show-current 2>/dev/null)
-  if [ "$(pwd -P)" = "$(cd "$EXPECTED" 2>/dev/null && pwd -P)" ] && [ "$CURRENT_BRANCH" = "$EXPECTED_BRANCH" ]; then
+  if [ "$(pwd -P)" = "$REPO_ROOT" ] && [ "$CURRENT_BRANCH" = "$EXPECTED_BRANCH" ]; then
     echo "OK"
   else
-    echo "WARN: 当前不在主仓库正确分支内（期望分支: $EXPECTED_BRANCH）"
+    echo "WARN: 当前不在主仓库根目录或分支不匹配"
   fi
 fi
 
@@ -596,11 +602,12 @@ $expectedBranch = $state.isolation.branch
 if ($mode -eq "worktree") {
   if ($PWD.Path -eq $expected) { Write-Host "OK" } else { Write-Host "WARN: 当前不在 worktree 内" }
 } elseif ($mode -in @("feat-branch", "main-branch")) {
+  $repoRoot = (git rev-parse --show-toplevel 2>$null | Out-String).Trim()
   $currentBranch = git branch --show-current 2>$null
-  if ($PWD.Path -eq $expected -and $currentBranch -eq $expectedBranch) {
+  if ($PWD.Path -eq $repoRoot -and $currentBranch -eq $expectedBranch) {
     Write-Host "OK"
   } else {
-    Write-Host "WARN: 当前不在主仓库正确分支内（期望分支: $expectedBranch）"
+    Write-Host "WARN: 当前不在主仓库根目录或分支不匹配"
   }
 }
 ```
@@ -669,11 +676,12 @@ EXPECTED_BRANCH=$(jq -r .isolation.branch devflow/<feature>/state.json 2>/dev/nu
 if [ "$MODE" = "worktree" ]; then
   [ "$(pwd -P)" = "$(cd "$EXPECTED" 2>/dev/null && pwd -P)" ] && echo "OK" || echo "WARN: 当前不在 worktree 内"
 elif [ "$MODE" = "feat-branch" ] || [ "$MODE" = "main-branch" ]; then
+  REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
   CURRENT_BRANCH=$(git branch --show-current 2>/dev/null)
-  if [ "$(pwd -P)" = "$(cd "$EXPECTED" 2>/dev/null && pwd -P)" ] && [ "$CURRENT_BRANCH" = "$EXPECTED_BRANCH" ]; then
+  if [ "$(pwd -P)" = "$REPO_ROOT" ] && [ "$CURRENT_BRANCH" = "$EXPECTED_BRANCH" ]; then
     echo "OK"
   else
-    echo "WARN: 当前不在主仓库正确分支内（期望分支: $EXPECTED_BRANCH）"
+    echo "WARN: 当前不在主仓库根目录或分支不匹配"
   fi
 fi
 
@@ -686,11 +694,12 @@ $expectedBranch = $state.isolation.branch
 if ($mode -eq "worktree") {
   if ($PWD.Path -eq $expected) { Write-Host "OK" } else { Write-Host "WARN: 当前不在 worktree 内" }
 } elseif ($mode -in @("feat-branch", "main-branch")) {
+  $repoRoot = (git rev-parse --show-toplevel 2>$null | Out-String).Trim()
   $currentBranch = git branch --show-current 2>$null
-  if ($PWD.Path -eq $expected -and $currentBranch -eq $expectedBranch) {
+  if ($PWD.Path -eq $repoRoot -and $currentBranch -eq $expectedBranch) {
     Write-Host "OK"
   } else {
-    Write-Host "WARN: 当前不在主仓库正确分支内（期望分支: $expectedBranch）"
+    Write-Host "WARN: 当前不在主仓库根目录或分支不匹配"
   }
 }
 ```
@@ -766,11 +775,12 @@ EXPECTED_BRANCH=$(jq -r .isolation.branch devflow/<feature>/state.json 2>/dev/nu
 if [ "$MODE" = "worktree" ]; then
   [ "$(pwd -P)" = "$(cd "$EXPECTED" 2>/dev/null && pwd -P)" ] && echo "OK" || echo "WARN: 当前不在 worktree 内"
 elif [ "$MODE" = "feat-branch" ] || [ "$MODE" = "main-branch" ]; then
+  REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
   CURRENT_BRANCH=$(git branch --show-current 2>/dev/null)
-  if [ "$(pwd -P)" = "$(cd "$EXPECTED" 2>/dev/null && pwd -P)" ] && [ "$CURRENT_BRANCH" = "$EXPECTED_BRANCH" ]; then
+  if [ "$(pwd -P)" = "$REPO_ROOT" ] && [ "$CURRENT_BRANCH" = "$EXPECTED_BRANCH" ]; then
     echo "OK"
   else
-    echo "WARN: 当前不在主仓库正确分支内（期望分支: $EXPECTED_BRANCH）"
+    echo "WARN: 当前不在主仓库根目录或分支不匹配"
   fi
 fi
 
@@ -783,11 +793,12 @@ $expectedBranch = $state.isolation.branch
 if ($mode -eq "worktree") {
   if ($PWD.Path -eq $expected) { Write-Host "OK" } else { Write-Host "WARN: 当前不在 worktree 内" }
 } elseif ($mode -in @("feat-branch", "main-branch")) {
+  $repoRoot = (git rev-parse --show-toplevel 2>$null | Out-String).Trim()
   $currentBranch = git branch --show-current 2>$null
-  if ($PWD.Path -eq $expected -and $currentBranch -eq $expectedBranch) {
+  if ($PWD.Path -eq $repoRoot -and $currentBranch -eq $expectedBranch) {
     Write-Host "OK"
   } else {
-    Write-Host "WARN: 当前不在主仓库正确分支内（期望分支: $expectedBranch）"
+    Write-Host "WARN: 当前不在主仓库根目录或分支不匹配"
   }
 }
 ```
@@ -814,7 +825,7 @@ Phase 6 的收尾逻辑按 `isolation.mode` 分为三条路径：
 
 **目的：** 防止存在未提交文件（如下载的数据、临时配置等），会话结束后丢失。
 
-**注意：** 只有在 Phase 5 通过人工验收且合并验证通过后，才执行提交。
+**注意：** 只有在 Phase 5 通过人工验收后，才执行提交。合并验证在后续 6.3/6.4/6.5 中按模式执行。
 
 确认完成后，**必须先执行**以下步骤：
 
@@ -912,7 +923,7 @@ git merge-base <target-branch> <feature-branch>
 git log --merges --first-parent <base-commit>..<target-branch>
 ```
 
-- **无新 merge commit：** 跳过 6.3.1.5 ~ 6.3.1.7，直接进入 6.2 预完成提交。
+- **无新 merge commit：** 跳过 6.3.1.5 ~ 6.3.1.7，直接进入 6.3.2 预完成提交（如尚未执行）或 6.3.3 合并 feature 到 target。
 - **有新 merge commit：** 进入 6.3.1.5 涉及 feat 验证。
 
 #### 6.3.1.5 涉及 feat 验证
@@ -959,7 +970,7 @@ git merge <target-branch>                  # 将 target 合并到 feature
 
 merge 完成后，重新跑当前 feature 的测试用例和验收规格（`devflow/<feature>/test-cases.md`）。
 
-- 全部通过 → 进入 6.2 预完成提交
+- 全部通过 → 进入 6.3.3 合并 feature 到 target
 - 未通过 → 停止，提示用户修复
 
 #### 6.3.2 预完成提交（兜底保护）
@@ -1180,10 +1191,17 @@ git checkout <target-branch>
 git merge --no-ff <feature>
 
 # 5. 推送前 fast-forward 预检
-git merge-base --is-ancestor origin/<target-branch> HEAD || echo "REJECT"
+git merge-base --is-ancestor origin/<target-branch> HEAD && echo "OK" || echo "REJECT"
+# OK：继续下一步
+# REJECT：硬停止。本地 target 不是远端的 fast-forward 后代，禁止推送。
 
 # 6. 推送
 git push origin <target-branch>
+
+# 推送后验证
+LOCAL=$(git rev-parse HEAD)
+REMOTE=$(git rev-parse origin/<target-branch>)
+[ "$LOCAL" = "$REMOTE" ] && echo "✅ 推送成功" || echo "⚠️ 远端与本地不一致"
 
 # 7. 保留 feat 分支，不删除
 ```
@@ -1197,10 +1215,17 @@ git fetch origin
 git merge --ff-only origin/<target-branch>   # 失败则硬停止
 
 # 2. 推送前 fast-forward 预检
-git merge-base --is-ancestor origin/<target-branch> HEAD || echo "REJECT"
+git merge-base --is-ancestor origin/<target-branch> HEAD && echo "OK" || echo "REJECT"
+# OK：继续下一步
+# REJECT：硬停止。本地 target 不是远端的 fast-forward 后代，禁止推送。
 
 # 3. 推送
 git push origin <target-branch>
+
+# 推送后验证
+LOCAL=$(git rev-parse HEAD)
+REMOTE=$(git rev-parse origin/<target-branch>)
+[ "$LOCAL" = "$REMOTE" ] && echo "✅ 推送成功" || echo "⚠️ 远端与本地不一致"
 ```
 
 注意：
@@ -1305,7 +1330,7 @@ git push origin <target-branch>
 | 合并验证发现冲突 | 停止流程，提示人工解决，不允许自动覆盖 |
 | 本地与远端分叉（--ff-only 失败） | **硬停止**，提示用户手动检查 `git log --oneline --graph` 确认分叉原因 |
 | 推送前安全预检失败 | **硬停止**，本地不是远端的 fast-forward 后代，禁止推送 |
-| git push 被远端拒绝 | **硬停止**，从 6.3.3.1 重新执行 |
+| git push 被远端拒绝 | **硬停止**，worktree 模式从 6.3.3.1 重新执行；feat 模式从 6.4 第 1 步重新执行；main 模式从 6.5 第 1 步重新执行 |
 | 远端验证不一致 | 提示用户检查 `git log origin/<target-branch>` |
 | git push --force | **绝对禁止。** 任何情况下不允许使用 |
 | worktree 清理失败 | 给出明确提示，由用户手动处理 |
