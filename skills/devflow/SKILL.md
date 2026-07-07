@@ -134,6 +134,16 @@ v2.4 起不再提供 `/devflow list` 和 `/devflow cleanup` 管理命令。`/dev
 
 ## Phase 1: 需求澄清
 
+```
+Phase 1.1-1.2: 需求澄清
+    ↓ checkpoint（显式确认）
+Phase 1.35: 选择开发模式
+    ↓
+[Phase 1.3: 提炼 feature 名称]  （仅当 mode ≠ main-branch）
+    ↓
+Phase 1.4: 按模式初始化会话
+```
+
 **约束：** 不调用 Write/Edit，不产生任何文件改动
 
 ### 1.1 流程
@@ -165,22 +175,9 @@ v2.4 起不再提供 `/devflow list` 和 `/devflow cleanup` 管理命令。`/dev
 >
 > 请确认以上内容是否准确、完整。回复 **"确认" / "Yes" / "Y"** 进入需求拆解；否则请指出需要修改的地方。"
 
-- **用户回复 "确认" / "Yes" / "Y"：** 进入 Phase 1.3（提炼 feature 名称）
+- **用户回复 "确认" / "Yes" / "Y"：** 进入 Phase 1.35（选择开发模式）
 - **其他任何回复（包括"需要修改"、指出问题、部分肯定、沉默等）：** 一律视为需要修改。针对用户反馈修正后，**重新输出完整的需求总结**，再次等待确认
 - **不回复：** 自然暂停。下次 `/devflow` 时通过 Step 0 检测恢复。
-
-### 1.3 提炼 Feature 名称
-
-从确认的需求中提炼一个简短的 feature 名称：
-
-- 使用英文小写 + 连字符（如 `user-auth`、`payment-flow`、`fix-login-timeout`）
-- 4 个词以内，描述性强
-- 如果用户后续选择了 `main-branch` 模式，feature 名称仅用于 `devflow/<feature>/` 目录名，不作为分支名
-
-向用户确认："基于需求，feature 名称建议为 `xxx`，可以吗？"
-
-- 用户确认后暂存 feature 名称，进入 Phase 1.35 模式选择
-- 若用户最终选择 `main-branch` 模式，feature 名称仅用于跟踪目录
 
 ### 1.35 选择开发模式
 
@@ -193,8 +190,8 @@ v2.4 起不再提供 `/devflow list` 和 `/devflow cleanup` 管理命令。`/dev
 >
 > 回复数字或名称选择。
 
-- 用户选择 `worktree` 或 `feat-branch`：使用 Phase 1.3 确认的 feature 名称
-- 用户选择 `main-branch`：feature 名称降级为仅用于 `devflow/<feature>/` 目录名
+- 用户选择 `worktree` 或 `feat-branch`：进入 Phase 1.3 提炼并确认 feature 名称
+- 用户选择 `main-branch`：跳过 Phase 1.3，feature 名称由 AI 内部推导，仅用于 `devflow/<feature>/` 目录跟踪，不经过用户确认
 
 选择 `main-branch` 时追加风险提示：
 
@@ -202,9 +199,23 @@ v2.4 起不再提供 `/devflow list` 和 `/devflow cleanup` 管理命令。`/dev
 >
 > 回复 **确认 / Yes / Y** 继续；否则返回模式选择。
 
+### 1.3 提炼 Feature 名称
+
+**仅当用户选择 `feat-branch` 或 `worktree` 模式时执行。** 若用户选择 `main-branch` 模式，则跳过本阶段，feature 名称由 AI 内部推导，仅用于 `devflow/<feature>/` 目录跟踪。
+
+从确认的需求中提炼一个简短的 feature 名称：
+
+- 使用英文小写 + 连字符（如 `user-auth`、`payment-flow`、`fix-login-timeout`）
+- 4 个词以内，描述性强
+- 用于分支名（`feat/<feature>` 或 worktree 分支名）和 `devflow/<feature>/` 目录名
+
+向用户确认："基于需求，feature 名称建议为 `xxx`，可以吗？"
+
+- 用户确认后暂存 feature 名称，进入 Phase 1.4 初始化会话
+
 ### 1.4 初始化会话
 
-Feature 名称确认且模式选择完成后，执行以下步骤。
+模式选择完成，且（如适用）Feature 名称确认后，执行以下步骤。
 
 #### 1.4.1 自动识别目标分支
 
