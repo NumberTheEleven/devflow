@@ -756,124 +756,61 @@ if ($mode -eq "worktree") {
 
 #### CWD 守卫
 
-进入本 Phase 前，确认当前 CWD 是否在 `devflow/<feature>/state.json` 中 `isolation.path` 指定的 worktree 内：
+进入本 Phase 前，确认当前 CWD 是否在 `devflow/<feature>/state.json` 中 `isolation.path` 指定的工作目录内，且当前分支符合 `isolation.branch`：
 ```bash
 # Unix
+MODE=$(jq -r '.isolation.mode // "worktree"' devflow/<feature>/state.json 2>/dev/null)
 EXPECTED=$(jq -r .isolation.path devflow/<feature>/state.json 2>/dev/null)
-[ "$(pwd -P)" != "$(cd "$EXPECTED" 2>/dev/null && pwd -P)" ] && echo "WARN: 当前不在 worktree 内" || echo "OK"
+EXPECTED_BRANCH=$(jq -r .isolation.branch devflow/<feature>/state.json 2>/dev/null)
+
+if [ "$MODE" = "worktree" ]; then
+  [ "$(pwd -P)" = "$(cd "$EXPECTED" 2>/dev/null && pwd -P)" ] && echo "OK" || echo "WARN: 当前不在 worktree 内"
+elif [ "$MODE" = "feat-branch" ] || [ "$MODE" = "main-branch" ]; then
+  CURRENT_BRANCH=$(git branch --show-current 2>/dev/null)
+  if [ "$(pwd -P)" = "$(cd "$EXPECTED" 2>/dev/null && pwd -P)" ] && [ "$CURRENT_BRANCH" = "$EXPECTED_BRANCH" ]; then
+    echo "OK"
+  else
+    echo "WARN: 当前不在主仓库正确分支内（期望分支: $EXPECTED_BRANCH）"
+  fi
+fi
 
 # Windows PowerShell
 $state = Get-Content "devflow/<feature>/state.json" -Raw | ConvertFrom-Json
-$expected = (Resolve-Path $state.isolation.path).Path
-if ($PWD.Path -ne $expected) { Write-Host "WARN: 当前不在 worktree 内" } else { Write-Host "OK" }
+$mode = $state.isolation.mode ?? "worktree"
+$expected = (Resolve-Path $state.isolation.path -ErrorAction SilentlyContinue).Path
+$expectedBranch = $state.isolation.branch
+
+if ($mode -eq "worktree") {
+  if ($PWD.Path -eq $expected) { Write-Host "OK" } else { Write-Host "WARN: 当前不在 worktree 内" }
+} elseif ($mode -in @("feat-branch", "main-branch")) {
+  $currentBranch = git branch --show-current 2>$null
+  if ($PWD.Path -eq $expected -and $currentBranch -eq $expectedBranch) {
+    Write-Host "OK"
+  } else {
+    Write-Host "WARN: 当前不在主仓库正确分支内（期望分支: $expectedBranch）"
+  }
+}
 ```
 - 检测为 OK：正常继续
-- 检测到 WARN：尝试 `EnterWorktree path="<isolation.path>"` 恢复 CWD；如不可用，提示用户确认并执行 `cd` 恢复
+- **worktree 模式且检测到 WARN**：尝试 `EnterWorktree path="<isolation.path>"`；如不可用，提示用户确认并执行 `cd` 恢复
+- **feat 模式且检测到 WARN**：提示用户执行 `git checkout <feature>` 并 `cd <main-repo-root>`
+- **main 模式且检测到 WARN**：提示用户执行 `git checkout <target-branch>` 并 `cd <main-repo-root>`
+
+### 6.0 模式路由
+
+Phase 6 的收尾逻辑按 `isolation.mode` 分为三条路径：
+
+- `worktree`：保持现有 v3.0 流程（合并验证 → 预完成提交 → 合并到 target → 删除 worktree + 分支）
+- `feat-branch`：在主仓库中把 target 同步到 feat，再合并 feat 到 target，保留 feat 分支
+- `main-branch`：在主仓库中同步 target 后直接 push，不创建/删除分支
 
 ### 6.1 确认
 
 > "DevFlow 流程已通过人工验收。是否结束会话并提交？回复 **确认 / Yes / Y** 完成并提交；否则请说明。"
 
-### 6.2 合并验证
+### 6.2 预完成提交（兜底保护）
 
-确认完成后，**必须先执行**合并验证：
-
-#### 6.2.1 识别目标分支
-
-自动识别目标分支（`master` 或 `main`），规则同 Phase 1.4。
-
-#### 6.2.2 拉取远端并验证本地状态
-
-⚠️ **合并验证的核心安全步骤。**
-```bash
-# 在所有涉及的工作目录（主仓库和 worktree）均拉取最新远端状态
-git fetch origin
-```
-
-验证本地目标分支与远端一致：
-```bash
-# Unix
-LOCAL=$(git rev-parse <target-branch>)
-REMOTE=$(git rev-parse origin/<target-branch>)
-[ "$LOCAL" = "$REMOTE" ] && echo "OK: 本地与远端一致" || echo "WARN: 本地 <target-branch> 落后于远端"
-
-# Windows PowerShell
-$local = git rev-parse <target-branch>
-$remote = git rev-parse origin/<target-branch>
-if ($local -eq $remote) { Write-Host "OK: 本地与远端一致" } else { Write-Host "WARN: 本地 <target-branch> 落后于远端" }
-```
-
-- **OK：** 继续 6.2.3
-- **WARN：** 执行 `git merge --ff-only origin/<target-branch>` 将本地目标分支同步到远端最新
-  - `--ff-only` 成功 → 继续 6.2.3
-  - `--ff-only`失败（分叉）→ **立即停止**，提示：
-    > "⚠️ 本地 <target-branch> 与远端分叉，存在本地独有的提交。不允许继续，请手动处理后再运行 /devflow。"
-
-#### 6.2.3 计算基准 commit
-
-```bash
-git merge-base <target-branch> <feature-branch>
-```
-
-#### 6.2.4 检查目标分支新变更
-
-列出目标分支自基准 commit 以来的所有 merge commit：
-
-```bash
-git log --merges --first-parent <base-commit>..<target-branch>
-```
-
-- **无新 merge commit：** 跳过 6.2.5 ~ 6.2.7，直接进入 6.3 预完成提交。
-- **有新 merge commit：** 进入 6.2.5 涉及 feat 验证。
-
-#### 6.2.5 涉及 feat 验证
-
-对每个 merge commit，从 commit message 中识别合并的 feature 分支名（例如 `Merge branch 'user-auth' into main` → `user-auth`）。
-
-对每个识别出的涉及 feat：
-1. 检查目标分支上是否存在 `devflow/<involved-feature>/test-cases.md`
-2. 如果存在，重跑其测试用例和验收规格
-3. 如果不存在，给出明确提示："涉及 feat `<involved-feature>` 没有 DevFlow 跟踪文件，请人工确认是否需要验证。"
-
-**注意：** 即使没有 git 代码冲突，只要时间窗口存在重叠，就需要验证涉及 feat 的测试用例，以捕获语义冲突。
-
-如果涉及 feat 验证未通过：
-> "涉及 feat 验证未通过。请确认：
-> [修复涉及 feat] 需要上游 feature 修复后重新合并到目标分支
-> [调整当前 feature 以兼容] 在当前 feature 中适配上游变更
-> [人工确认可接受] 明确记录风险后继续"
-
-#### 6.2.6 执行 catch-up merge（目标分支 → feature）
-
-在 **worktree** 内执行。将目标分支的最新内容合并到 feature 分支，目的是让 feature 分支追上目标分支的进度，在 6.2.7 中重新验证兼容性。
-
-⚠️ **merge 方向是 `<target-branch>` 合并 INTO `<feature>`，不是反过来。** 当前在 feature 分支上：
-
-```bash
-git checkout <feature>                     # 确认在 feature 分支
-git merge <target-branch>                  # 将 target 合并到 feature
-```
-
-**只允许 merge，不允许 rebase。**
-
-- **无冲突：** 继续 6.2.7
-- **有冲突：**
-  > "检测到合并冲突，请人工解决以下文件后再继续：
-  > - `<conflict-file-1>`
-  > - `<conflict-file-2>`
-  > 
-  > 不允许自动覆盖合并。解决后回复 **确认 / Yes / Y** 继续。"
-  
-  用户确认解决后，继续 6.2.7。
-
-#### 6.2.7 当前 feature 重验证
-
-merge 完成后，重新跑当前 feature 的测试用例和验收规格（`devflow/<feature>/test-cases.md`）。
-
-- 全部通过 → 进入 6.3 预完成提交
-- 未通过 → 停止，提示用户修复
-
-### 6.3 预完成提交（兜底保护）
+所有模式共享：
 
 **目的：** 防止存在未提交文件（如下载的数据、临时配置等），会话结束后丢失。
 
@@ -895,7 +832,7 @@ merge 完成后，重新跑当前 feature 的测试用例和验收规格（`devf
 
 2. **根据检测结果处理：**
 
-   **情况 A — 无任何未提交变更：** 直接进入 6.4 标记完成。
+   **情况 A — 无任何未提交变更：** 直接进入下一阶段。
 
    **情况 B — 仅有已追踪文件的修改（无 untracked）：**
    - 列出变更文件
@@ -922,13 +859,120 @@ merge 完成后，重新跑当前 feature 的测试用例和验收规格（`devf
    ```
    必须干净才能标记完成。如果不干净（用户跳过了某些文件），再次提醒并确认。
 
-### 6.4 合并到目标分支（严格安全流程）
+### 6.3 worktree 模式收尾
+
+保持原 v3.0 合并验证、合并到 target、清理流程。
+
+#### 6.3.1 合并验证
+
+确认完成后，**必须先执行**合并验证：
+
+#### 6.3.1.1 识别目标分支
+
+自动识别目标分支（`master` 或 `main`），规则同 Phase 1.4。
+
+#### 6.3.1.2 拉取远端并验证本地状态
+
+⚠️ **合并验证的核心安全步骤。**
+```bash
+# 在所有涉及的工作目录（主仓库和 worktree）均拉取最新远端状态
+git fetch origin
+```
+
+验证本地目标分支与远端一致：
+```bash
+# Unix
+LOCAL=$(git rev-parse <target-branch>)
+REMOTE=$(git rev-parse origin/<target-branch>)
+[ "$LOCAL" = "$REMOTE" ] && echo "OK: 本地与远端一致" || echo "WARN: 本地 <target-branch> 落后于远端"
+
+# Windows PowerShell
+$local = git rev-parse <target-branch>
+$remote = git rev-parse origin/<target-branch>
+if ($local -eq $remote) { Write-Host "OK: 本地与远端一致" } else { Write-Host "WARN: 本地 <target-branch> 落后于远端" }
+```
+
+- **OK：** 继续 6.3.1.3
+- **WARN：** 执行 `git merge --ff-only origin/<target-branch>` 将本地目标分支同步到远端最新
+  - `--ff-only` 成功 → 继续 6.3.1.3
+  - `--ff-only`失败（分叉）→ **立即停止**，提示：
+    > "⚠️ 本地 <target-branch> 与远端分叉，存在本地独有的提交。不允许继续，请手动处理后再运行 /devflow。"
+
+#### 6.3.1.3 计算基准 commit
+
+```bash
+git merge-base <target-branch> <feature-branch>
+```
+
+#### 6.3.1.4 检查目标分支新变更
+
+列出目标分支自基准 commit 以来的所有 merge commit：
+
+```bash
+git log --merges --first-parent <base-commit>..<target-branch>
+```
+
+- **无新 merge commit：** 跳过 6.3.1.5 ~ 6.3.1.7，直接进入 6.2 预完成提交。
+- **有新 merge commit：** 进入 6.3.1.5 涉及 feat 验证。
+
+#### 6.3.1.5 涉及 feat 验证
+
+对每个 merge commit，从 commit message 中识别合并的 feature 分支名（例如 `Merge branch 'user-auth' into main` → `user-auth`）。
+
+对每个识别出的涉及 feat：
+1. 检查目标分支上是否存在 `devflow/<involved-feature>/test-cases.md`
+2. 如果存在，重跑其测试用例和验收规格
+3. 如果不存在，给出明确提示："涉及 feat `<involved-feature>` 没有 DevFlow 跟踪文件，请人工确认是否需要验证。"
+
+**注意：** 即使没有 git 代码冲突，只要时间窗口存在重叠，就需要验证涉及 feat 的测试用例，以捕获语义冲突。
+
+如果涉及 feat 验证未通过：
+> "涉及 feat 验证未通过。请确认：
+> [修复涉及 feat] 需要上游 feature 修复后重新合并到目标分支
+> [调整当前 feature 以兼容] 在当前 feature 中适配上游变更
+> [人工确认可接受] 明确记录风险后继续"
+
+#### 6.3.1.6 执行 catch-up merge（目标分支 → feature）
+
+在 **worktree** 内执行。将目标分支的最新内容合并到 feature 分支，目的是让 feature 分支追上目标分支的进度，在 6.3.1.7 中重新验证兼容性。
+
+⚠️ **merge 方向是 `<target-branch>` 合并 INTO `<feature>`，不是反过来。** 当前在 feature 分支上：
+
+```bash
+git checkout <feature>                     # 确认在 feature 分支
+git merge <target-branch>                  # 将 target 合并到 feature
+```
+
+**只允许 merge，不允许 rebase。**
+
+- **无冲突：** 继续 6.3.1.7
+- **有冲突：**
+  > "检测到合并冲突，请人工解决以下文件后再继续：
+  > - `<conflict-file-1>`
+  > - `<conflict-file-2>`
+  > 
+  > 不允许自动覆盖合并。解决后回复 **确认 / Yes / Y** 继续。"
+  
+  用户确认解决后，继续 6.3.1.7。
+
+#### 6.3.1.7 当前 feature 重验证
+
+merge 完成后，重新跑当前 feature 的测试用例和验收规格（`devflow/<feature>/test-cases.md`）。
+
+- 全部通过 → 进入 6.2 预完成提交
+- 未通过 → 停止，提示用户修复
+
+#### 6.3.2 预完成提交（兜底保护）
+
+> 预完成提交已在 6.2 中统一执行。worktree 模式下不再重复，如检测到未提交变更应返回 6.2 处理。
+
+#### 6.3.3 合并到目标分支（严格安全流程）
 
 将 feature 分支合并到目标分支。这是整个流程中唯一一次变更目标分支的操作，**必须严格遵守以下步骤，每一步都有验证，禁止跳步。**
 
 ⚠️ **所有以下操作在主仓库根目录执行，不在 worktree 中。** 执行前确认 CWD 不在 `.claude/worktrees/devflow-*` 路径下。
 
-#### 6.4.1 拉取远端并验证状态
+#### 6.3.3.1 拉取远端并验证状态
 
 ```bash
 # 拉取远端最新状态（只拉取，不合并）
@@ -948,15 +992,15 @@ $remote = git rev-parse origin/<target-branch>
 if ($local -eq $remote) { Write-Host "OK: 本地与远端一致" } else { Write-Host "WARN: 本地落后于远端" }
 ```
 
-- **OK：** 继续 6.4.2
+- **OK：** 继续 6.3.3.2
 - **WARN：** 执行 `git merge --ff-only origin/<target-branch>`
-  - `--ff-only` 成功 → 继续 6.4.2
+  - `--ff-only` 成功 → 继续 6.3.3.2
   - `--ff-only` 失败（分叉）→ **硬停止。** 输出：
     > "⛔ 本地 <target-branch> 与远端分叉。存在本地独有的提交，或本地历史与远端不一致。
     > 继续合并将导致覆盖远端提交。请手动处理后再运行 /devflow。
     > 建议：检查 `git log --oneline --graph <target-branch> origin/<target-branch>`，确认分叉原因。"
 
-#### 6.4.2 确认 feature 分支可访问
+#### 6.3.3.2 确认 feature 分支可访问
 
 ```bash
 # 确认 feature branch 存在且与 worktree 中的一致
@@ -965,7 +1009,7 @@ git log --oneline -1 <feature-branch>
 
 读取 `devflow/<feature>/state.json` 确认 `isolation.branch` 与 `<feature-branch>` 一致。
 
-#### 6.4.3 切换到目标分支
+#### 6.3.3.3 切换到目标分支
 
 ```bash
 git checkout <target-branch>
@@ -977,7 +1021,7 @@ git branch --show-current
 ```
 输出必须是 `<target-branch>`。不是则停止。
 
-#### 6.4.4 合并 feature 分支（--no-ff 强制生成 merge commit）
+#### 6.3.3.4 合并 feature 分支（--no-ff 强制生成 merge commit）
 
 ```bash
 git merge --no-ff <feature-branch>
@@ -985,9 +1029,9 @@ git merge --no-ff <feature-branch>
 
 **只允许 `--no-ff`，不允许 fast-forward、squash、rebase。**
 
-- **合并成功：** 继续 6.4.5
+- **合并成功：** 继续 6.3.3.5
 - **有冲突（git 返回非零退出码）：**
-  > "⛔ 合并到目标分支时检测到冲突。这可能是因为 6.2.6 中已合并的目标分支内容与当前目标分支不一致（远端有新提交），或 feature 分支存在未预期的变更。
+  > "⛔ 合并到目标分支时检测到冲突。这可能是因为 6.3.1.6 中已合并的目标分支内容与当前目标分支不一致（远端有新提交），或 feature 分支存在未预期的变更。
   > 
   > 请检查并手动解决以下冲突文件：
   > - `<conflict-file-1>`
@@ -995,7 +1039,7 @@ git merge --no-ff <feature-branch>
   > 
   > 解决后回复 **确认 / Yes / Y** 继续，我将验证合并结果。"
 
-#### 6.4.5 合并结果验证
+#### 6.3.3.5 合并结果验证
 
 ```bash
 # 确认 HEAD 是 merge commit（有两个 parent）
@@ -1016,7 +1060,7 @@ git branch --show-current
 
 如果任一项不满足 → 停止，检查输出。
 
-#### 6.4.6 推送前预检
+#### 6.3.3.6 推送前预检
 
 在推送前最后一次确认不会覆盖远端：
 
@@ -1025,12 +1069,12 @@ git branch --show-current
 git merge-base --is-ancestor origin/<target-branch> HEAD && echo "OK: 推送安全（本地是远端的 fast-forward）" || echo "REJECT: 推送到远端将被拒绝或覆盖"
 ```
 
-- **OK：** 继续 6.4.7
+- **OK：** 继续 6.3.3.7
 - **REJECT：** **硬停止。** 输出：
   > "⛔ 检测到当前本地 <target-branch> 不是远端的 fast-forward 后代。推送将被拒绝或覆盖远端。
   > 请检查 `git log --oneline --graph origin/<target-branch> HEAD`，确认原因后手动处理。"
 
-#### 6.4.7 推送到远端
+#### 6.3.3.7 推送到远端
 
 ```bash
 git push origin <target-branch>
@@ -1038,12 +1082,12 @@ git push origin <target-branch>
 
 ⚠️ **绝对禁止 `git push --force`、`git push --force-with-lease`、或任何形式的强制推送。**
 
-- **推送成功：** 继续 6.4.8
+- **推送成功：** 继续 6.3.3.8
 - **推送被拒绝：** **硬停止。** 输出：
-  > "⛔ 推送到远端被拒绝。远端在 6.4.6 之后有新的提交，或存在其他冲突。
-  > 请从 6.4.1 重新执行（重新 fetch 并验证）。"
+  > "⛔ 推送到远端被拒绝。远端在 6.3.3.6 之后有新的提交，或存在其他冲突。
+  > 请从 6.3.3.1 重新执行（重新 fetch 并验证）。"
 
-#### 6.4.8 推送后远端验证
+#### 6.3.3.8 推送后远端验证
 
 ```bash
 # 确认远端目标分支 HEAD 与本地一致
@@ -1052,11 +1096,11 @@ REMOTE=$(git rev-parse origin/<target-branch>)
 [ "$LOCAL" = "$REMOTE" ] && echo "✅ 推送成功，远端已更新" || echo "REJECT: 远端与本地不一致"
 ```
 
-- **OK：** 进入 6.5 清理
+- **OK：** 进入 6.3.4 清理
 - **不一致：** 输出：
   > "⚠️ 推送后远端与本地不一致，可能是推送未完成或远端 hook 修改了提交。请检查 `git log origin/<target-branch>`。"
 
-### 6.5 自动清理开发环境副本（worktree）
+#### 6.3.4 自动清理开发环境副本（worktree）
 
 提交成功后，自动删除 worktree。读取 `devflow/<feature>/state.json` 中 `isolation.path` 和 `isolation.branch`。
 
@@ -1083,7 +1127,7 @@ git branch -d <feature>  # 安全删除（仅当已合并）
 # git branch -D <feature>
 ```
 
-清理前确认 worktree 内无未提交变更（Phase 6.3 已保证）。清理失败时给出明确提示，包括：
+清理前确认 worktree 内无未提交变更（Phase 6.2 已保证）。清理失败时给出明确提示，包括：
 - `git worktree remove` 报错（如 worktree 被锁定）
 - 残留进程占用文件（Windows 常见）
 - 提供手动清理命令
@@ -1099,7 +1143,7 @@ rm -rf .claude/worktrees/devflow-<feature>
 
 并跳过 `git worktree prune` / `git branch -d`（v2.4 副本不是 git worktree，feature branch 需用户手动管理）。
 
-### 6.6 标记完成
+#### 6.3.5 标记完成
 
 更新 `devflow/<feature>/state.json`：
 
@@ -1112,9 +1156,66 @@ rm -rf .claude/worktrees/devflow-<feature>
 
 输出："DevFlow v3.0 流程完成。跟踪文件保存在 devflow/<feature>/ 目录。"
 
-### 6.7 保留会话
+#### 6.3.6 保留会话
 
 如果用户选择保留会话，状态文件标记 `phase: "completed"`，worktree 可以保留或手动清理。
+
+### 6.4 feat 分支模式收尾
+
+```bash
+# 1. 切到 target，安全同步远端
+git checkout <target-branch>
+git fetch origin
+git merge --ff-only origin/<target-branch>   # 失败则硬停止
+
+# 2. 切到 feat，把 target 最新内容合并进来
+git checkout <feature>
+git merge <target-branch>                    # 处理冲突
+
+# 3. 重跑当前 feature 测试用例
+# ...
+
+# 4. 切回 target，把 feat 合并进去（--no-ff）
+git checkout <target-branch>
+git merge --no-ff <feature>
+
+# 5. 推送前 fast-forward 预检
+git merge-base --is-ancestor origin/<target-branch> HEAD || echo "REJECT"
+
+# 6. 推送
+git push origin <target-branch>
+
+# 7. 保留 feat 分支，不删除
+```
+
+### 6.5 main 分支模式收尾
+
+```bash
+# 1. 切到 target，安全同步远端
+git checkout <target-branch>
+git fetch origin
+git merge --ff-only origin/<target-branch>   # 失败则硬停止
+
+# 2. 推送前 fast-forward 预检
+git merge-base --is-ancestor origin/<target-branch> HEAD || echo "REJECT"
+
+# 3. 推送
+git push origin <target-branch>
+```
+
+注意：
+
+- main 模式不执行 catch-up merge（已在 target 上）
+- 仍需执行 `git merge --ff-only origin/<target-branch>` 安全检查
+- 推送前同样做 fast-forward 预检
+
+### 6.6 清理总结
+
+- **worktree 模式**：`ExitWorktree remove` + 删除 feature 分支
+- **feat 模式**：无 worktree 清理，保留 feature 分支
+- **main 模式**：无 worktree 清理，无分支删除
+
+所有模式最后更新 `state.json`：`phase: "completed"`。
 
 ---
 
@@ -1204,7 +1305,7 @@ rm -rf .claude/worktrees/devflow-<feature>
 | 合并验证发现冲突 | 停止流程，提示人工解决，不允许自动覆盖 |
 | 本地与远端分叉（--ff-only 失败） | **硬停止**，提示用户手动检查 `git log --oneline --graph` 确认分叉原因 |
 | 推送前安全预检失败 | **硬停止**，本地不是远端的 fast-forward 后代，禁止推送 |
-| git push 被远端拒绝 | **硬停止**，从 6.4.1 重新执行 |
+| git push 被远端拒绝 | **硬停止**，从 6.3.3.1 重新执行 |
 | 远端验证不一致 | 提示用户检查 `git log origin/<target-branch>` |
 | git push --force | **绝对禁止。** 任何情况下不允许使用 |
 | worktree 清理失败 | 给出明确提示，由用户手动处理 |
