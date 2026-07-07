@@ -1,6 +1,6 @@
 ---
 name: devflow
-description: DevFlow v3.0 — AI 开发规范流程，单一入口，按阶段推进完整开发流程。基于 git worktree 会话隔离与强制合并验证，防止多 feature 并行开发时的冲突与语义回归。
+description: DevFlow v3.0 — AI 开发规范流程，单一入口，按阶段推进完整开发流程。支持 git worktree / feat 分支 / main 分支三种开发模式，强制合并验证，防止多 feature 并行开发时的冲突与语义回归。
 argument-hint: [模糊需求描述]
 allowed-tools: [Read, Write, Glob, Grep, Bash, Edit, Agent, TaskCreate, WebSearch, WebFetch, LSP, Skill]
 ---
@@ -24,13 +24,13 @@ Phase 4: 编码实现 (implement) → T-xxx 任务 + 架构图 + 代码
     ↓ checkpoint（显式确认）
 Phase 5: 测试验证 (verify) → L1烟雾 + L2交互 + L3手工，证据驱动
     ↓ checkpoint（人工验收）
-Phase 6: 流程完成 → 合并验证 + 提交 + worktree 清理
+Phase 6: 流程完成 → 合并验证 + 提交 + 按模式清理
 ```
 
 **核心原则：**
 - 唯一入口：`/devflow`，没有子命令
 - clarify 阶段不产生任何文件写入
-- clarify 确认后创建 git worktree 作为开发环境（v3.0 起），所有后续文件改动在该 worktree 内进行
+- clarify 确认且模式选择完成后，按所选模式初始化开发环境（worktree / feat 分支 / main 分支），所有后续文件改动在该开发环境中进行
 - v2.4 遗留的全量副本目录（`GIT_DIR == GIT_COMMON` 但路径在 `.claude/worktrees/devflow-*` 下）仍可识别并恢复
 - 每个 feature 的 DevFlow 文件隔离在 `devflow/<feature>/` 目录下，随 feature 分支提交
 - **每个阶段结束时必须获得用户显式确认（"确认"/"Yes"/"Y"），才能进入下一阶段**
@@ -45,7 +45,7 @@ Phase 6: 流程完成 → 合并验证 + 提交 + worktree 清理
 
 ## Step 0: 入口检测
 
-收到 `/devflow` 请求后，首先判断当前环境。v3.0 起，会话隔离基于 git worktree，检测需同时识别 v3.0 worktree 会话和 v2.4 全量副本遗留会话。
+收到 `/devflow` 请求后，首先判断当前环境。v3.0 起，会话隔离支持三种模式：git worktree 分库开发、feat 分支开发、main 分支开发，检测需同时识别 v3.0 worktree 会话、feat/main 主仓库会话和 v2.4 全量副本遗留会话。
 
 ### 0.1 计算 git 拓扑标识
 
@@ -85,15 +85,44 @@ $inV24Copy = ($PWD.Path -like '*/.claude/worktrees/devflow-*' -or $PWD.Path -lik
 
 | `IN_WORKTREE` | `IN_V24_COPY` | 判定 | 动作 |
 |---------------|---------------|------|------|
-| `false` | `false` | 在主仓库（非开发环境） | 继续 0.4 检查旧版活跃会话 |
+| `false` | `false` | 在主仓库（非开发环境） | 继续 0.4 检查活跃会话（包括 feat/main 模式会话） |
 | `false` | `true` | 在 v2.4 全量副本中 | 读取 `devflow/<feature>/state.json` 恢复会话（视为 v2.4 会话） |
 | `true` | (任意) | 在 v3.0 git worktree 中 | 读取 `devflow/<feature>/state.json` 恢复会话 |
 
 注意：`IN_WORKTREE=true` 时 `IN_V24_COPY` 一定为 `false`（v3.0 worktree 目录名虽然形如 `.claude/worktrees/devflow-*`，但路径前缀检测仅作为兜底，主判定以 git 拓扑为准）。
 
+> 判定处于主仓库时，还需检查 0.4.1，防止多个 main 模式会话同时运行。
+
 ### 0.4 检测是否有活跃会话
 
-检查主仓库根目录下是否存在未完成的旧版 `devflow/state.json`（仅在判定处于主仓库时执行）：
+先在主仓库根目录下扫描 `devflow/*/` 中未完成的 feat/main 模式会话（仅在判定处于主仓库时执行）：
+
+```bash
+# 伪代码
+for dir in devflow/*/; do
+  state_file="$dir/state.json"
+  [ -f "$state_file" ] || continue
+  mode=$(jq -r '.isolation.mode // "worktree"' "$state_file" 2>/dev/null)
+  phase=$(jq -r '.phase' "$state_file" 2>/dev/null)
+  feature=$(basename "$dir")
+  if [ "$phase" != "completed" ] && [ "$mode" = "feat-branch" -o "$mode" = "main-branch" ]; then
+    echo "检测到未完成的 $mode 会话（feature: $feature，当前阶段：$phase）。是否恢复该会话？"
+    # 恢复会话：读取 state.json，跳转到对应 phase
+  fi
+done
+```
+
+- **发现一个未完成的 feat/main 模式会话：** 询问用户是否恢复该会话
+  - 用户确认恢复：读取 `devflow/<feature>/state.json`，跳转到 `phase` 对应阶段入口
+  - 用户拒绝恢复：继续检查旧版 `devflow/state.json`
+
+- **发现多个未完成的 feat/main 模式会话：** 列出所有未完成会话，询问用户恢复哪一个
+  - 用户选择其中一个：读取对应 `state.json` 并跳转
+  - 用户拒绝恢复：继续检查旧版 `devflow/state.json`
+
+- **未发现未完成的 feat/main 模式会话：** 继续检查旧版 `devflow/state.json`（见下方）。
+
+再检查主仓库根目录下是否存在未完成的旧版 `devflow/state.json`：
 
 - **存在且 `phase` 不是 `"completed"`：** 说明有未完成的旧版 DevFlow 会话。
   - 输出："检测到主仓库存在未完成的旧版 DevFlow 会话（feature: `<feature>`，当前阶段：`<phase>`）。v3.0 起会话需要在开发环境副本中运行，请先完成或手动清理该会话后再开始新会话。"
@@ -102,6 +131,28 @@ $inV24Copy = ($PWD.Path -like '*/.claude/worktrees/devflow-*' -or $PWD.Path -lik
 - **不存在或 `phase` 为 `"completed"`：**
   - 如果没有传入需求描述，询问用户要做什么
   - 如果传入了需求描述，进入 Phase 1（需求澄清）
+
+### 0.4.1 检查是否已有未完成的 main 模式会话
+
+仅在判定处于主仓库时执行。遍历 `devflow/*/` 下所有 `state.json`：
+
+```bash
+# 伪代码
+for dir in devflow/*/; do
+  state_file="$dir/state.json"
+  [ -f "$state_file" ] || continue
+  mode=$(jq -r '.isolation.mode // "worktree"' "$state_file" 2>/dev/null)
+  phase=$(jq -r '.phase' "$state_file" 2>/dev/null)
+  if [ "$mode" = "main-branch" ] && [ "$phase" != "completed" ]; then
+    feature=$(basename "$dir")
+    echo "检测到未完成的 main 模式会话（feature: $feature，当前阶段：$phase）。同一时刻只能有一个 main 模式会话。"
+    exit 1
+  fi
+done
+```
+
+- 存在未完成的 main 模式会话：报错并停止，提示用户完成或标记完成后开始新会话
+- 不存在：继续原有 0.4 逻辑
 
 ### 0.5 管理命令说明
 
@@ -113,6 +164,16 @@ v2.4 起不再提供 `/devflow list` 和 `/devflow cleanup` 管理命令。`/dev
 ---
 
 ## Phase 1: 需求澄清
+
+```
+Phase 1.1-1.2: 需求澄清
+    ↓ checkpoint（显式确认）
+Phase 1.35: 选择开发模式
+    ↓
+[Phase 1.3: 提炼 feature 名称]  （仅当 mode ≠ main-branch）
+    ↓
+Phase 1.4: 按模式初始化会话
+```
 
 **约束：** 不调用 Write/Edit，不产生任何文件改动
 
@@ -145,24 +206,52 @@ v2.4 起不再提供 `/devflow list` 和 `/devflow cleanup` 管理命令。`/dev
 >
 > 请确认以上内容是否准确、完整。回复 **"确认" / "Yes" / "Y"** 进入需求拆解；否则请指出需要修改的地方。"
 
-- **用户回复 "确认" / "Yes" / "Y"：** 进入 Phase 1.3（提炼 feature 名称 + 初始化会话）
+- **用户回复 "确认" / "Yes" / "Y"：** 进入 Phase 1.35（选择开发模式）
 - **其他任何回复（包括"需要修改"、指出问题、部分肯定、沉默等）：** 一律视为需要修改。针对用户反馈修正后，**重新输出完整的需求总结**，再次等待确认
 - **不回复：** 自然暂停。下次 `/devflow` 时通过 Step 0 检测恢复。
 
+### 1.35 选择开发模式
+
+在需求澄清确认后、初始化会话前，展示模式选择：
+
+> 需求已确认。请选择本次开发模式：
+> 1. **worktree 分支分库开发**（推荐）：创建独立 worktree，完全隔离，适合改动大的 feature（当前 v3.0 默认）
+> 2. **feat 分支开发**：在主仓库中创建 feature 分支直接开发，不创建 worktree，避免 worktree 环境/端口问题
+> 3. **main 分支开发**：直接在 main/master 上开发，不创建分支和 worktree，适合极小改动或紧急修复
+>
+> 回复数字或名称选择。
+
+- 用户选择 `worktree` 或 `feat-branch`：进入 Phase 1.3 提炼并确认 feature 名称
+- 用户选择 `main-branch`：跳过 Phase 1.3，feature 名称由 AI 内部推导，仅用于 `devflow/<feature>/` 目录跟踪，不经过用户确认
+
+选择 `main-branch` 时追加风险提示：
+
+> 你选择了 main 分支开发模式。所有改动将直接提交到 `<target-branch>` 并推送到远端。该模式不适合需要代码审查或可能破坏主干的较大改动。是否确认继续？
+>
+> 回复 **确认 / Yes / Y** 继续；否则返回模式选择。
+
 ### 1.3 提炼 Feature 名称
 
+**仅当用户选择 `feat-branch` 或 `worktree` 模式时执行。** 若用户选择 `main-branch` 模式，则跳过本阶段，feature 名称由 AI 内部推导，仅用于 `devflow/<feature>/` 目录跟踪。
+
 从确认的需求中提炼一个简短的 feature 名称：
+
 - 使用英文小写 + 连字符（如 `user-auth`、`payment-flow`、`fix-login-timeout`）
 - 4 个词以内，描述性强
-- 向用户确认："基于需求，feature 名称建议为 `xxx`，可以吗？"
+- 用于分支名（`feature` 分支名或 worktree 分支名）和 `devflow/<feature>/` 目录名
+
+向用户确认："基于需求，feature 名称建议为 `xxx`，可以吗？"
+
+- 用户确认后暂存 feature 名称，进入 Phase 1.4 初始化会话
 
 ### 1.4 初始化会话
 
-Feature 名称确认后，执行以下步骤。
+Feature 名称确认且模式选择完成后，按所选模式初始化会话。三种模式共享前置步骤 1.4.1 和 1.4.2。1.4.3 为 feat/main 模式的工作区状态提示，worktree 模式跳过。之后进入各自的初始化路径：1.4.4（worktree）、1.4.5（feat）、1.4.6（main）。最终通过 `state.json` 中的 `isolation.mode` 记录所选模式。
 
 #### 1.4.1 自动识别目标分支
 
 检查 `master` 和 `main`，按以下优先级：
+
 - 仅存在 `main` → 使用 `main`
 - 仅存在 `master` → 使用 `master`
 - 同时存在 → 默认使用 `main`
@@ -170,53 +259,98 @@ Feature 名称确认后，执行以下步骤。
 
 #### 1.4.2 检查冲突
 
-检查是否已存在同名 branch 或开发环境目录：
+- **worktree / feat 模式**：检查是否已存在同名 branch 或开发环境目录
+  ```bash
+  git branch --list <feature>
+  ls -d .claude/worktrees/devflow-<feature> 2>/dev/null
+  ```
+  - 存在：报错 "feature 名称 `<feature>` 已存在（branch 或开发环境），请更换名称。"
+  - 不存在：继续
+
+- **main 模式**：Step 0 已检查未完成的 main 模式会话，此处不再重复
+
+#### 1.4.3 工作区状态提示（feat/main 模式专用）
+
+因为 feat/main 模式直接修改主仓库工作区，初始化前检查：
+
 ```bash
-git branch --list <feature>
-ls -d .claude/worktrees/devflow-<feature> 2>/dev/null  # Unix
-# 或 Test-Path .claude/worktrees/devflow-<feature>      # Windows
+git status --short
 ```
-- 如果存在，报错："feature 名称 `<feature>` 已存在（branch 或开发环境），请更换名称。"
-- 不存在则继续
 
-#### 1.4.3 创建 feature branch
+- **无未提交变更**：直接继续
+- **存在未提交变更**：提示但不阻塞：
+  > "检测到工作区存在未提交变更。若继续，这些变更将被纳入本次 DevFlow 会话的开发范围。是否继续？
+  > - 回复 **继续**：开始本次会话
+  > - 回复 **清理**：请先 stash / commit / 丢弃变更后再开始"
+
+worktree 模式不需要此检查。
+
+#### 1.4.4 worktree 模式初始化
+
+执行当前 v3.0 的初始化流程：
 
 ```bash
-git checkout -b <feature>
-```
-
-#### 1.4.4 创建 git worktree（秒级）
-
-```bash
-# 切回目标分支（如果当前在 feature branch）
+git checkout -b <feature> <target-branch>
 git checkout <target-branch>
-
-# 用 git worktree add 创建隔离环境
 git worktree add .claude/worktrees/devflow-<feature> <feature>
+EnterWorktree path=".claude/worktrees/devflow-<feature>"
 ```
 
-此时 worktree 只包含 git-tracked 文件。无 `node_modules`、无 `.env`、无本地数据。
+然后按 1.4.7 补充运行时环境。
 
-#### 1.4.5 切换 CWD 到 worktree
+`state.json` 的 `isolation`：
 
-**方案 A（优先，Claude Code 环境）：使用 EnterWorktree 原生工具**
+```json
+"isolation": {
+  "mode": "worktree",
+  "type": "worktree",
+  "path": ".claude/worktrees/devflow-<feature>",
+  "branch": "<feature>",
+  "target_branch": "<target-branch>"
+}
+```
 
-调用 `EnterWorktree` 工具，参数：
-- `path`: `.claude/worktrees/devflow-<feature>`
-
-工具调用成功后，session CWD 自动切换到 worktree 目录。后续所有 shell 命令、文件操作均在 worktree 内执行。
-
-**方案 B（fallback，非 Claude Code 环境）：手动 cd**
+#### 1.4.5 feat 分支模式初始化
 
 ```bash
-cd .claude/worktrees/devflow-<feature>
+git checkout -b <feature> <target-branch>
 ```
 
-每个 Phase 开头会执行 CWD 守卫（见各 Phase 起始说明），发现 CWD 不在 worktree 时会警告并尝试恢复。
+不创建 worktree，留在主仓库当前目录。`devflow/<feature>/` 目录创建在主仓库中。
 
-#### 1.4.6 补充运行时环境（策略菜单）
+`state.json` 的 `isolation`：
 
-worktree 不含 gitignored 的运行时文件。根据项目实际情况，按以下策略菜单选择处理方式：
+```json
+"isolation": {
+  "mode": "feat-branch",
+  "path": ".",
+  "branch": "<feature>",
+  "target_branch": "<target-branch>"
+}
+```
+
+#### 1.4.6 main 分支模式初始化
+
+```bash
+git checkout <target-branch>
+```
+
+不创建分支，不创建 worktree。`feature` 名称仅用于 `devflow/<feature>/` 目录名。
+
+`state.json` 的 `isolation`：
+
+```json
+"isolation": {
+  "mode": "main-branch",
+  "path": ".",
+  "branch": "<target-branch>",
+  "target_branch": "<target-branch>"
+}
+```
+
+#### 1.4.7 补充运行时环境（策略菜单）
+
+worktree 模式下不含 gitignored 的运行时文件，需按策略菜单补充。feat/main 模式下主仓库已有运行时环境，通常无需额外补充，但可按项目情况确认。
 
 | 策略 | 适用场景 | 命令 |
 |------|---------|------|
@@ -264,9 +398,9 @@ data/fixtures/
 
 这样后续创建 worktree 时 `node_modules` 自动 symlink，无需每次手动处理。
 
-#### 1.4.7 初始化状态目录和文件
+#### 1.4.8 初始化状态目录和文件
 
-在 worktree 内创建 `devflow/<feature>/` 目录，写入 `state.json`：
+在当前 `isolation.path` 指定的工作目录内创建 `devflow/<feature>/` 目录，写入 `state.json`：
 
 ```json
 {
@@ -277,6 +411,7 @@ data/fixtures/
   "requirements_confirmed": true,
   "open_questions": ["<待澄清项>"],
   "isolation": {
+    "mode": "worktree",
     "type": "worktree",
     "path": ".claude/worktrees/devflow-<feature>",
     "branch": "<feature>",
@@ -293,11 +428,11 @@ data/fixtures/
 }
 ```
 
-新增 `isolation` 字段记录 worktree 元数据，便于 Phase 6.5 清理时定位。
+新增 `isolation` 字段记录会话隔离元数据，便于后续 CWD 守卫和 Phase 6 清理时定位。
 
-#### 1.4.8 提示用户
+#### 1.4.9 提示用户
 
-> "会话 `<feature>` 已在 git worktree `.claude/worktrees/devflow-<feature>` 中准备就绪（基于 `<target-branch>`）。已根据项目情况补充运行时环境（node_modules: <策略>; 配置/数据: <策略>）。可立即启动服务进行验收。后续所有文件操作将在该 worktree 内进行。"
+> "会话 `<feature>` 已准备就绪（模式：`<isolation.mode>`；路径：`<isolation.path>`；基于 `<target-branch>`）。已根据项目情况补充运行时环境（如适用）。可立即启动服务进行验收。后续所有文件操作将在当前工作目录内进行。"
 
 ### 1.5 进入下一阶段
 
@@ -311,19 +446,47 @@ data/fixtures/
 
 #### CWD 守卫
 
-进入本 Phase 前，确认当前 CWD 是否在 `devflow/<feature>/state.json` 中 `isolation.path` 指定的 worktree 内：
+进入本 Phase 前，确认当前 CWD 是否在 `devflow/<feature>/state.json` 中 `isolation.path` 指定的工作目录内，且当前分支符合 `isolation.branch`：
 ```bash
 # Unix
+MODE=$(jq -r '.isolation.mode // "worktree"' devflow/<feature>/state.json 2>/dev/null)
 EXPECTED=$(jq -r .isolation.path devflow/<feature>/state.json 2>/dev/null)
-[ "$(pwd -P)" != "$(cd "$EXPECTED" 2>/dev/null && pwd -P)" ] && echo "WARN: 当前不在 worktree 内" || echo "OK"
+EXPECTED_BRANCH=$(jq -r .isolation.branch devflow/<feature>/state.json 2>/dev/null)
+
+if [ "$MODE" = "worktree" ]; then
+  [ "$(pwd -P)" = "$(cd "$EXPECTED" 2>/dev/null && pwd -P)" ] && echo "OK" || echo "WARN: 当前不在 worktree 内"
+elif [ "$MODE" = "feat-branch" ] || [ "$MODE" = "main-branch" ]; then
+  REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
+  CURRENT_BRANCH=$(git branch --show-current 2>/dev/null)
+  if [ "$(pwd -P)" = "$REPO_ROOT" ] && [ "$CURRENT_BRANCH" = "$EXPECTED_BRANCH" ]; then
+    echo "OK"
+  else
+    echo "WARN: 当前不在主仓库根目录或分支不匹配"
+  fi
+fi
 
 # Windows PowerShell
 $state = Get-Content "devflow/<feature>/state.json" -Raw | ConvertFrom-Json
-$expected = (Resolve-Path $state.isolation.path).Path
-if ($PWD.Path -ne $expected) { Write-Host "WARN: 当前不在 worktree 内" } else { Write-Host "OK" }
+$mode = $state.isolation.mode ?? "worktree"
+$expected = (Resolve-Path $state.isolation.path -ErrorAction SilentlyContinue).Path
+$expectedBranch = $state.isolation.branch
+
+if ($mode -eq "worktree") {
+  if ($PWD.Path -eq $expected) { Write-Host "OK" } else { Write-Host "WARN: 当前不在 worktree 内" }
+} elseif ($mode -in @("feat-branch", "main-branch")) {
+  $repoRoot = (git rev-parse --show-toplevel 2>$null | Out-String).Trim()
+  $currentBranch = git branch --show-current 2>$null
+  if ($PWD.Path -eq $repoRoot -and $currentBranch -eq $expectedBranch) {
+    Write-Host "OK"
+  } else {
+    Write-Host "WARN: 当前不在主仓库根目录或分支不匹配"
+  }
+}
 ```
 - 检测为 OK：正常继续
-- 检测到 WARN：尝试 `EnterWorktree path="<isolation.path>"` 恢复 CWD；如不可用，提示用户确认并执行 `cd` 恢复
+- **worktree 模式且检测到 WARN**：尝试 `EnterWorktree path="<isolation.path>"`；如不可用，提示用户确认并执行 `cd` 恢复
+- **feat 模式且检测到 WARN**：提示用户执行 `git checkout <feature>` 并 `cd <main-repo-root>`
+- **main 模式且检测到 WARN**：提示用户执行 `git checkout <target-branch>` 并 `cd <main-repo-root>`
 
 ### 2.1 流程
 
@@ -366,19 +529,47 @@ if ($PWD.Path -ne $expected) { Write-Host "WARN: 当前不在 worktree 内" } el
 
 #### CWD 守卫
 
-进入本 Phase 前，确认当前 CWD 是否在 `devflow/<feature>/state.json` 中 `isolation.path` 指定的 worktree 内：
+进入本 Phase 前，确认当前 CWD 是否在 `devflow/<feature>/state.json` 中 `isolation.path` 指定的工作目录内，且当前分支符合 `isolation.branch`：
 ```bash
 # Unix
+MODE=$(jq -r '.isolation.mode // "worktree"' devflow/<feature>/state.json 2>/dev/null)
 EXPECTED=$(jq -r .isolation.path devflow/<feature>/state.json 2>/dev/null)
-[ "$(pwd -P)" != "$(cd "$EXPECTED" 2>/dev/null && pwd -P)" ] && echo "WARN: 当前不在 worktree 内" || echo "OK"
+EXPECTED_BRANCH=$(jq -r .isolation.branch devflow/<feature>/state.json 2>/dev/null)
+
+if [ "$MODE" = "worktree" ]; then
+  [ "$(pwd -P)" = "$(cd "$EXPECTED" 2>/dev/null && pwd -P)" ] && echo "OK" || echo "WARN: 当前不在 worktree 内"
+elif [ "$MODE" = "feat-branch" ] || [ "$MODE" = "main-branch" ]; then
+  REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
+  CURRENT_BRANCH=$(git branch --show-current 2>/dev/null)
+  if [ "$(pwd -P)" = "$REPO_ROOT" ] && [ "$CURRENT_BRANCH" = "$EXPECTED_BRANCH" ]; then
+    echo "OK"
+  else
+    echo "WARN: 当前不在主仓库根目录或分支不匹配"
+  fi
+fi
 
 # Windows PowerShell
 $state = Get-Content "devflow/<feature>/state.json" -Raw | ConvertFrom-Json
-$expected = (Resolve-Path $state.isolation.path).Path
-if ($PWD.Path -ne $expected) { Write-Host "WARN: 当前不在 worktree 内" } else { Write-Host "OK" }
+$mode = $state.isolation.mode ?? "worktree"
+$expected = (Resolve-Path $state.isolation.path -ErrorAction SilentlyContinue).Path
+$expectedBranch = $state.isolation.branch
+
+if ($mode -eq "worktree") {
+  if ($PWD.Path -eq $expected) { Write-Host "OK" } else { Write-Host "WARN: 当前不在 worktree 内" }
+} elseif ($mode -in @("feat-branch", "main-branch")) {
+  $repoRoot = (git rev-parse --show-toplevel 2>$null | Out-String).Trim()
+  $currentBranch = git branch --show-current 2>$null
+  if ($PWD.Path -eq $repoRoot -and $currentBranch -eq $expectedBranch) {
+    Write-Host "OK"
+  } else {
+    Write-Host "WARN: 当前不在主仓库根目录或分支不匹配"
+  }
+}
 ```
 - 检测为 OK：正常继续
-- 检测到 WARN：尝试 `EnterWorktree path="<isolation.path>"` 恢复 CWD；如不可用，提示用户确认并执行 `cd` 恢复
+- **worktree 模式且检测到 WARN**：尝试 `EnterWorktree path="<isolation.path>"`；如不可用，提示用户确认并执行 `cd` 恢复
+- **feat 模式且检测到 WARN**：提示用户执行 `git checkout <feature>` 并 `cd <main-repo-root>`
+- **main 模式且检测到 WARN**：提示用户执行 `git checkout <target-branch>` 并 `cd <main-repo-root>`
 
 ### 3.1 流程
 
@@ -413,19 +604,47 @@ if ($PWD.Path -ne $expected) { Write-Host "WARN: 当前不在 worktree 内" } el
 
 #### CWD 守卫
 
-进入本 Phase 前，确认当前 CWD 是否在 `devflow/<feature>/state.json` 中 `isolation.path` 指定的 worktree 内：
+进入本 Phase 前，确认当前 CWD 是否在 `devflow/<feature>/state.json` 中 `isolation.path` 指定的工作目录内，且当前分支符合 `isolation.branch`：
 ```bash
 # Unix
+MODE=$(jq -r '.isolation.mode // "worktree"' devflow/<feature>/state.json 2>/dev/null)
 EXPECTED=$(jq -r .isolation.path devflow/<feature>/state.json 2>/dev/null)
-[ "$(pwd -P)" != "$(cd "$EXPECTED" 2>/dev/null && pwd -P)" ] && echo "WARN: 当前不在 worktree 内" || echo "OK"
+EXPECTED_BRANCH=$(jq -r .isolation.branch devflow/<feature>/state.json 2>/dev/null)
+
+if [ "$MODE" = "worktree" ]; then
+  [ "$(pwd -P)" = "$(cd "$EXPECTED" 2>/dev/null && pwd -P)" ] && echo "OK" || echo "WARN: 当前不在 worktree 内"
+elif [ "$MODE" = "feat-branch" ] || [ "$MODE" = "main-branch" ]; then
+  REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
+  CURRENT_BRANCH=$(git branch --show-current 2>/dev/null)
+  if [ "$(pwd -P)" = "$REPO_ROOT" ] && [ "$CURRENT_BRANCH" = "$EXPECTED_BRANCH" ]; then
+    echo "OK"
+  else
+    echo "WARN: 当前不在主仓库根目录或分支不匹配"
+  fi
+fi
 
 # Windows PowerShell
 $state = Get-Content "devflow/<feature>/state.json" -Raw | ConvertFrom-Json
-$expected = (Resolve-Path $state.isolation.path).Path
-if ($PWD.Path -ne $expected) { Write-Host "WARN: 当前不在 worktree 内" } else { Write-Host "OK" }
+$mode = $state.isolation.mode ?? "worktree"
+$expected = (Resolve-Path $state.isolation.path -ErrorAction SilentlyContinue).Path
+$expectedBranch = $state.isolation.branch
+
+if ($mode -eq "worktree") {
+  if ($PWD.Path -eq $expected) { Write-Host "OK" } else { Write-Host "WARN: 当前不在 worktree 内" }
+} elseif ($mode -in @("feat-branch", "main-branch")) {
+  $repoRoot = (git rev-parse --show-toplevel 2>$null | Out-String).Trim()
+  $currentBranch = git branch --show-current 2>$null
+  if ($PWD.Path -eq $repoRoot -and $currentBranch -eq $expectedBranch) {
+    Write-Host "OK"
+  } else {
+    Write-Host "WARN: 当前不在主仓库根目录或分支不匹配"
+  }
+}
 ```
 - 检测为 OK：正常继续
-- 检测到 WARN：尝试 `EnterWorktree path="<isolation.path>"` 恢复 CWD；如不可用，提示用户确认并执行 `cd` 恢复
+- **worktree 模式且检测到 WARN**：尝试 `EnterWorktree path="<isolation.path>"`；如不可用，提示用户确认并执行 `cd` 恢复
+- **feat 模式且检测到 WARN**：提示用户执行 `git checkout <feature>` 并 `cd <main-repo-root>`
+- **main 模式且检测到 WARN**：提示用户执行 `git checkout <target-branch>` 并 `cd <main-repo-root>`
 
 ### 4.1 流程
 
@@ -477,19 +696,47 @@ if ($PWD.Path -ne $expected) { Write-Host "WARN: 当前不在 worktree 内" } el
 
 #### CWD 守卫
 
-进入本 Phase 前，确认当前 CWD 是否在 `devflow/<feature>/state.json` 中 `isolation.path` 指定的 worktree 内：
+进入本 Phase 前，确认当前 CWD 是否在 `devflow/<feature>/state.json` 中 `isolation.path` 指定的工作目录内，且当前分支符合 `isolation.branch`：
 ```bash
 # Unix
+MODE=$(jq -r '.isolation.mode // "worktree"' devflow/<feature>/state.json 2>/dev/null)
 EXPECTED=$(jq -r .isolation.path devflow/<feature>/state.json 2>/dev/null)
-[ "$(pwd -P)" != "$(cd "$EXPECTED" 2>/dev/null && pwd -P)" ] && echo "WARN: 当前不在 worktree 内" || echo "OK"
+EXPECTED_BRANCH=$(jq -r .isolation.branch devflow/<feature>/state.json 2>/dev/null)
+
+if [ "$MODE" = "worktree" ]; then
+  [ "$(pwd -P)" = "$(cd "$EXPECTED" 2>/dev/null && pwd -P)" ] && echo "OK" || echo "WARN: 当前不在 worktree 内"
+elif [ "$MODE" = "feat-branch" ] || [ "$MODE" = "main-branch" ]; then
+  REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
+  CURRENT_BRANCH=$(git branch --show-current 2>/dev/null)
+  if [ "$(pwd -P)" = "$REPO_ROOT" ] && [ "$CURRENT_BRANCH" = "$EXPECTED_BRANCH" ]; then
+    echo "OK"
+  else
+    echo "WARN: 当前不在主仓库根目录或分支不匹配"
+  fi
+fi
 
 # Windows PowerShell
 $state = Get-Content "devflow/<feature>/state.json" -Raw | ConvertFrom-Json
-$expected = (Resolve-Path $state.isolation.path).Path
-if ($PWD.Path -ne $expected) { Write-Host "WARN: 当前不在 worktree 内" } else { Write-Host "OK" }
+$mode = $state.isolation.mode ?? "worktree"
+$expected = (Resolve-Path $state.isolation.path -ErrorAction SilentlyContinue).Path
+$expectedBranch = $state.isolation.branch
+
+if ($mode -eq "worktree") {
+  if ($PWD.Path -eq $expected) { Write-Host "OK" } else { Write-Host "WARN: 当前不在 worktree 内" }
+} elseif ($mode -in @("feat-branch", "main-branch")) {
+  $repoRoot = (git rev-parse --show-toplevel 2>$null | Out-String).Trim()
+  $currentBranch = git branch --show-current 2>$null
+  if ($PWD.Path -eq $repoRoot -and $currentBranch -eq $expectedBranch) {
+    Write-Host "OK"
+  } else {
+    Write-Host "WARN: 当前不在主仓库根目录或分支不匹配"
+  }
+}
 ```
 - 检测为 OK：正常继续
-- 检测到 WARN：尝试 `EnterWorktree path="<isolation.path>"` 恢复 CWD；如不可用，提示用户确认并执行 `cd` 恢复
+- **worktree 模式且检测到 WARN**：尝试 `EnterWorktree path="<isolation.path>"`；如不可用，提示用户确认并执行 `cd` 恢复
+- **feat 模式且检测到 WARN**：提示用户执行 `git checkout <feature>` 并 `cd <main-repo-root>`
+- **main 模式且检测到 WARN**：提示用户执行 `git checkout <target-branch>` 并 `cd <main-repo-root>`
 
 ### 5.1 流程
 
@@ -548,128 +795,67 @@ if ($PWD.Path -ne $expected) { Write-Host "WARN: 当前不在 worktree 内" } el
 
 #### CWD 守卫
 
-进入本 Phase 前，确认当前 CWD 是否在 `devflow/<feature>/state.json` 中 `isolation.path` 指定的 worktree 内：
+进入本 Phase 前，确认当前 CWD 是否在 `devflow/<feature>/state.json` 中 `isolation.path` 指定的工作目录内，且当前分支符合 `isolation.branch`：
 ```bash
 # Unix
+MODE=$(jq -r '.isolation.mode // "worktree"' devflow/<feature>/state.json 2>/dev/null)
 EXPECTED=$(jq -r .isolation.path devflow/<feature>/state.json 2>/dev/null)
-[ "$(pwd -P)" != "$(cd "$EXPECTED" 2>/dev/null && pwd -P)" ] && echo "WARN: 当前不在 worktree 内" || echo "OK"
+EXPECTED_BRANCH=$(jq -r .isolation.branch devflow/<feature>/state.json 2>/dev/null)
+
+if [ "$MODE" = "worktree" ]; then
+  [ "$(pwd -P)" = "$(cd "$EXPECTED" 2>/dev/null && pwd -P)" ] && echo "OK" || echo "WARN: 当前不在 worktree 内"
+elif [ "$MODE" = "feat-branch" ] || [ "$MODE" = "main-branch" ]; then
+  REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
+  CURRENT_BRANCH=$(git branch --show-current 2>/dev/null)
+  if [ "$(pwd -P)" = "$REPO_ROOT" ] && [ "$CURRENT_BRANCH" = "$EXPECTED_BRANCH" ]; then
+    echo "OK"
+  else
+    echo "WARN: 当前不在主仓库根目录或分支不匹配"
+  fi
+fi
 
 # Windows PowerShell
 $state = Get-Content "devflow/<feature>/state.json" -Raw | ConvertFrom-Json
-$expected = (Resolve-Path $state.isolation.path).Path
-if ($PWD.Path -ne $expected) { Write-Host "WARN: 当前不在 worktree 内" } else { Write-Host "OK" }
+$mode = $state.isolation.mode ?? "worktree"
+$expected = (Resolve-Path $state.isolation.path -ErrorAction SilentlyContinue).Path
+$expectedBranch = $state.isolation.branch
+
+if ($mode -eq "worktree") {
+  if ($PWD.Path -eq $expected) { Write-Host "OK" } else { Write-Host "WARN: 当前不在 worktree 内" }
+} elseif ($mode -in @("feat-branch", "main-branch")) {
+  $repoRoot = (git rev-parse --show-toplevel 2>$null | Out-String).Trim()
+  $currentBranch = git branch --show-current 2>$null
+  if ($PWD.Path -eq $repoRoot -and $currentBranch -eq $expectedBranch) {
+    Write-Host "OK"
+  } else {
+    Write-Host "WARN: 当前不在主仓库根目录或分支不匹配"
+  }
+}
 ```
 - 检测为 OK：正常继续
-- 检测到 WARN：尝试 `EnterWorktree path="<isolation.path>"` 恢复 CWD；如不可用，提示用户确认并执行 `cd` 恢复
+- **worktree 模式且检测到 WARN**：尝试 `EnterWorktree path="<isolation.path>"`；如不可用，提示用户确认并执行 `cd` 恢复
+- **feat 模式且检测到 WARN**：提示用户执行 `git checkout <feature>` 并 `cd <main-repo-root>`
+- **main 模式且检测到 WARN**：提示用户执行 `git checkout <target-branch>` 并 `cd <main-repo-root>`
+
+### 6.0 模式路由
+
+Phase 6 的收尾逻辑按 `isolation.mode` 分为三条路径：
+
+- `worktree`：保持现有 v3.0 流程（预完成提交 → 合并验证 → 合并到 target → 清理 worktree）
+- `feat-branch`：在主仓库中把 target 同步到 feat，再合并 feat 到 target，保留 feat 分支
+- `main-branch`：在主仓库中同步 target 后直接 push，不创建/删除分支
 
 ### 6.1 确认
 
 > "DevFlow 流程已通过人工验收。是否结束会话并提交？回复 **确认 / Yes / Y** 完成并提交；否则请说明。"
 
-### 6.2 合并验证
+### 6.2 预完成提交（兜底保护）
 
-确认完成后，**必须先执行**合并验证：
-
-#### 6.2.1 识别目标分支
-
-自动识别目标分支（`master` 或 `main`），规则同 Phase 1.4。
-
-#### 6.2.2 拉取远端并验证本地状态
-
-⚠️ **合并验证的核心安全步骤。**
-```bash
-# 在所有涉及的工作目录（主仓库和 worktree）均拉取最新远端状态
-git fetch origin
-```
-
-验证本地目标分支与远端一致：
-```bash
-# Unix
-LOCAL=$(git rev-parse <target-branch>)
-REMOTE=$(git rev-parse origin/<target-branch>)
-[ "$LOCAL" = "$REMOTE" ] && echo "OK: 本地与远端一致" || echo "WARN: 本地 <target-branch> 落后于远端"
-
-# Windows PowerShell
-$local = git rev-parse <target-branch>
-$remote = git rev-parse origin/<target-branch>
-if ($local -eq $remote) { Write-Host "OK: 本地与远端一致" } else { Write-Host "WARN: 本地 <target-branch> 落后于远端" }
-```
-
-- **OK：** 继续 6.2.3
-- **WARN：** 执行 `git merge --ff-only origin/<target-branch>` 将本地目标分支同步到远端最新
-  - `--ff-only` 成功 → 继续 6.2.3
-  - `--ff-only`失败（分叉）→ **立即停止**，提示：
-    > "⚠️ 本地 <target-branch> 与远端分叉，存在本地独有的提交。不允许继续，请手动处理后再运行 /devflow。"
-
-#### 6.2.3 计算基准 commit
-
-```bash
-git merge-base <target-branch> <feature-branch>
-```
-
-#### 6.2.4 检查目标分支新变更
-
-列出目标分支自基准 commit 以来的所有 merge commit：
-
-```bash
-git log --merges --first-parent <base-commit>..<target-branch>
-```
-
-- **无新 merge commit：** 跳过 6.2.5 ~ 6.2.7，直接进入 6.3 预完成提交。
-- **有新 merge commit：** 进入 6.2.5 涉及 feat 验证。
-
-#### 6.2.5 涉及 feat 验证
-
-对每个 merge commit，从 commit message 中识别合并的 feature 分支名（例如 `Merge branch 'user-auth' into main` → `user-auth`）。
-
-对每个识别出的涉及 feat：
-1. 检查目标分支上是否存在 `devflow/<involved-feature>/test-cases.md`
-2. 如果存在，重跑其测试用例和验收规格
-3. 如果不存在，给出明确提示："涉及 feat `<involved-feature>` 没有 DevFlow 跟踪文件，请人工确认是否需要验证。"
-
-**注意：** 即使没有 git 代码冲突，只要时间窗口存在重叠，就需要验证涉及 feat 的测试用例，以捕获语义冲突。
-
-如果涉及 feat 验证未通过：
-> "涉及 feat 验证未通过。请确认：
-> [修复涉及 feat] 需要上游 feature 修复后重新合并到目标分支
-> [调整当前 feature 以兼容] 在当前 feature 中适配上游变更
-> [人工确认可接受] 明确记录风险后继续"
-
-#### 6.2.6 执行 catch-up merge（目标分支 → feature）
-
-在 **worktree** 内执行。将目标分支的最新内容合并到 feature 分支，目的是让 feature 分支追上目标分支的进度，在 6.2.7 中重新验证兼容性。
-
-⚠️ **merge 方向是 `<target-branch>` 合并 INTO `<feature>`，不是反过来。** 当前在 feature 分支上：
-
-```bash
-git checkout <feature>                     # 确认在 feature 分支
-git merge <target-branch>                  # 将 target 合并到 feature
-```
-
-**只允许 merge，不允许 rebase。**
-
-- **无冲突：** 继续 6.2.7
-- **有冲突：**
-  > "检测到合并冲突，请人工解决以下文件后再继续：
-  > - `<conflict-file-1>`
-  > - `<conflict-file-2>`
-  > 
-  > 不允许自动覆盖合并。解决后回复 **确认 / Yes / Y** 继续。"
-  
-  用户确认解决后，继续 6.2.7。
-
-#### 6.2.7 当前 feature 重验证
-
-merge 完成后，重新跑当前 feature 的测试用例和验收规格（`devflow/<feature>/test-cases.md`）。
-
-- 全部通过 → 进入 6.3 预完成提交
-- 未通过 → 停止，提示用户修复
-
-### 6.3 预完成提交（兜底保护）
+所有模式共享：
 
 **目的：** 防止存在未提交文件（如下载的数据、临时配置等），会话结束后丢失。
 
-**注意：** 只有在 Phase 5 通过人工验收且合并验证通过后，才执行提交。
+**注意：** 只有在 Phase 5 通过人工验收后，才执行提交。合并验证在后续 6.3/6.4/6.5 中按模式执行。
 
 确认完成后，**必须先执行**以下步骤：
 
@@ -687,7 +873,7 @@ merge 完成后，重新跑当前 feature 的测试用例和验收规格（`devf
 
 2. **根据检测结果处理：**
 
-   **情况 A — 无任何未提交变更：** 直接进入 6.4 标记完成。
+   **情况 A — 无任何未提交变更：** 直接进入下一阶段。
 
    **情况 B — 仅有已追踪文件的修改（无 untracked）：**
    - 列出变更文件
@@ -714,13 +900,120 @@ merge 完成后，重新跑当前 feature 的测试用例和验收规格（`devf
    ```
    必须干净才能标记完成。如果不干净（用户跳过了某些文件），再次提醒并确认。
 
-### 6.4 合并到目标分支（严格安全流程）
+### 6.3 worktree 模式收尾
+
+保持原 v3.0 合并验证、合并到 target、清理流程。
+
+#### 6.3.1 合并验证
+
+确认完成后，**必须先执行**合并验证：
+
+#### 6.3.1.1 识别目标分支
+
+自动识别目标分支（`master` 或 `main`），规则同 Phase 1.4。
+
+#### 6.3.1.2 拉取远端并验证本地状态
+
+⚠️ **合并验证的核心安全步骤。**
+```bash
+# 在所有涉及的工作目录（主仓库和 worktree）均拉取最新远端状态
+git fetch origin
+```
+
+验证本地目标分支与远端一致：
+```bash
+# Unix
+LOCAL=$(git rev-parse <target-branch>)
+REMOTE=$(git rev-parse origin/<target-branch>)
+[ "$LOCAL" = "$REMOTE" ] && echo "OK: 本地与远端一致" || echo "WARN: 本地 <target-branch> 落后于远端"
+
+# Windows PowerShell
+$local = git rev-parse <target-branch>
+$remote = git rev-parse origin/<target-branch>
+if ($local -eq $remote) { Write-Host "OK: 本地与远端一致" } else { Write-Host "WARN: 本地 <target-branch> 落后于远端" }
+```
+
+- **OK：** 继续 6.3.1.3
+- **WARN：** 执行 `git merge --ff-only origin/<target-branch>` 将本地目标分支同步到远端最新
+  - `--ff-only` 成功 → 继续 6.3.1.3
+  - `--ff-only`失败（分叉）→ **立即停止**，提示：
+    > "⚠️ 本地 <target-branch> 与远端分叉，存在本地独有的提交。不允许继续，请手动处理后再运行 /devflow。"
+
+#### 6.3.1.3 计算基准 commit
+
+```bash
+git merge-base <target-branch> <feature>
+```
+
+#### 6.3.1.4 检查目标分支新变更
+
+列出目标分支自基准 commit 以来的所有 merge commit：
+
+```bash
+git log --merges --first-parent <base-commit>..<target-branch>
+```
+
+- **无新 merge commit：** 跳过 6.3.1.5 ~ 6.3.1.7，直接进入 6.3.3 合并 feature 到 target。
+- **有新 merge commit：** 进入 6.3.1.5 涉及 feat 验证。
+
+#### 6.3.1.5 涉及 feat 验证
+
+对每个 merge commit，从 commit message 中识别合并的 feature 分支名（例如 `Merge branch 'user-auth' into main` → `user-auth`）。
+
+对每个识别出的涉及 feat：
+1. 检查目标分支上是否存在 `devflow/<involved-feature>/test-cases.md`
+2. 如果存在，重跑其测试用例和验收规格
+3. 如果不存在，给出明确提示："涉及 feat `<involved-feature>` 没有 DevFlow 跟踪文件，请人工确认是否需要验证。"
+
+**注意：** 即使没有 git 代码冲突，只要时间窗口存在重叠，就需要验证涉及 feat 的测试用例，以捕获语义冲突。
+
+如果涉及 feat 验证未通过：
+> "涉及 feat 验证未通过。请确认：
+> [修复涉及 feat] 需要上游 feature 修复后重新合并到目标分支
+> [调整当前 feature 以兼容] 在当前 feature 中适配上游变更
+> [人工确认可接受] 明确记录风险后继续"
+
+#### 6.3.1.6 执行 catch-up merge（目标分支 → feature）
+
+在 **worktree** 内执行。将目标分支的最新内容合并到 feature 分支，目的是让 feature 分支追上目标分支的进度，在 6.3.1.7 中重新验证兼容性。
+
+⚠️ **merge 方向是 `<target-branch>` 合并 INTO `<feature>`，不是反过来。** 当前在 feature 分支上：
+
+```bash
+git checkout <feature>                     # 确认在 feature 分支
+git merge <target-branch>                  # 将 target 合并到 feature
+```
+
+**只允许 merge，不允许 rebase。**
+
+- **无冲突：** 继续 6.3.1.7
+- **有冲突：**
+  > "检测到合并冲突，请人工解决以下文件后再继续：
+  > - `<conflict-file-1>`
+  > - `<conflict-file-2>`
+  > 
+  > 不允许自动覆盖合并。解决后回复 **确认 / Yes / Y** 继续。"
+  
+  用户确认解决后，继续 6.3.1.7。
+
+#### 6.3.1.7 当前 feature 重验证
+
+merge 完成后，重新跑当前 feature 的测试用例和验收规格（`devflow/<feature>/test-cases.md`）。
+
+- 全部通过 → 进入 6.3.3 合并 feature 到 target
+- 未通过 → 停止，提示用户修复
+
+#### 6.3.2 预完成提交（兜底保护）
+
+> 预完成提交已在 6.2 中统一执行。worktree 模式进入 6.3.1 合并验证前应确保工作区干净；如不干净，需先处理未提交变更再继续。
+
+#### 6.3.3 合并到目标分支（严格安全流程）
 
 将 feature 分支合并到目标分支。这是整个流程中唯一一次变更目标分支的操作，**必须严格遵守以下步骤，每一步都有验证，禁止跳步。**
 
 ⚠️ **所有以下操作在主仓库根目录执行，不在 worktree 中。** 执行前确认 CWD 不在 `.claude/worktrees/devflow-*` 路径下。
 
-#### 6.4.1 拉取远端并验证状态
+#### 6.3.3.1 拉取远端并验证状态
 
 ```bash
 # 拉取远端最新状态（只拉取，不合并）
@@ -740,24 +1033,24 @@ $remote = git rev-parse origin/<target-branch>
 if ($local -eq $remote) { Write-Host "OK: 本地与远端一致" } else { Write-Host "WARN: 本地落后于远端" }
 ```
 
-- **OK：** 继续 6.4.2
+- **OK：** 继续 6.3.3.2
 - **WARN：** 执行 `git merge --ff-only origin/<target-branch>`
-  - `--ff-only` 成功 → 继续 6.4.2
+  - `--ff-only` 成功 → 继续 6.3.3.2
   - `--ff-only` 失败（分叉）→ **硬停止。** 输出：
     > "⛔ 本地 <target-branch> 与远端分叉。存在本地独有的提交，或本地历史与远端不一致。
     > 继续合并将导致覆盖远端提交。请手动处理后再运行 /devflow。
     > 建议：检查 `git log --oneline --graph <target-branch> origin/<target-branch>`，确认分叉原因。"
 
-#### 6.4.2 确认 feature 分支可访问
+#### 6.3.3.2 确认 feature 分支可访问
 
 ```bash
 # 确认 feature branch 存在且与 worktree 中的一致
-git log --oneline -1 <feature-branch>
+git log --oneline -1 <feature>
 ```
 
-读取 `devflow/<feature>/state.json` 确认 `isolation.branch` 与 `<feature-branch>` 一致。
+读取 `devflow/<feature>/state.json` 确认 `isolation.branch` 与 `<feature>` 一致。
 
-#### 6.4.3 切换到目标分支
+#### 6.3.3.3 切换到目标分支
 
 ```bash
 git checkout <target-branch>
@@ -769,17 +1062,17 @@ git branch --show-current
 ```
 输出必须是 `<target-branch>`。不是则停止。
 
-#### 6.4.4 合并 feature 分支（--no-ff 强制生成 merge commit）
+#### 6.3.3.4 合并 feature 分支（--no-ff 强制生成 merge commit）
 
 ```bash
-git merge --no-ff <feature-branch>
+git merge --no-ff <feature>
 ```
 
 **只允许 `--no-ff`，不允许 fast-forward、squash、rebase。**
 
-- **合并成功：** 继续 6.4.5
+- **合并成功：** 继续 6.3.3.5
 - **有冲突（git 返回非零退出码）：**
-  > "⛔ 合并到目标分支时检测到冲突。这可能是因为 6.2.6 中已合并的目标分支内容与当前目标分支不一致（远端有新提交），或 feature 分支存在未预期的变更。
+  > "⛔ 合并到目标分支时检测到冲突。这可能是因为 6.3.1.6 中已合并的目标分支内容与当前目标分支不一致（远端有新提交），或 feature 分支存在未预期的变更。
   > 
   > 请检查并手动解决以下冲突文件：
   > - `<conflict-file-1>`
@@ -787,7 +1080,7 @@ git merge --no-ff <feature-branch>
   > 
   > 解决后回复 **确认 / Yes / Y** 继续，我将验证合并结果。"
 
-#### 6.4.5 合并结果验证
+#### 6.3.3.5 合并结果验证
 
 ```bash
 # 确认 HEAD 是 merge commit（有两个 parent）
@@ -803,12 +1096,12 @@ git branch --show-current
 验证 checklist：
 - HEAD 是一个 merge commit（有两个 parent）
 - 第一个 parent 是合并前的 `<target-branch>` HEAD
-- 第二个 parent 是 `<feature-branch>` 的最新 commit
+- 第二个 parent 是 `<feature>` 的最新 commit
 - 当前分支是 `<target-branch>`
 
 如果任一项不满足 → 停止，检查输出。
 
-#### 6.4.6 推送前预检
+#### 6.3.3.6 推送前预检
 
 在推送前最后一次确认不会覆盖远端：
 
@@ -817,12 +1110,12 @@ git branch --show-current
 git merge-base --is-ancestor origin/<target-branch> HEAD && echo "OK: 推送安全（本地是远端的 fast-forward）" || echo "REJECT: 推送到远端将被拒绝或覆盖"
 ```
 
-- **OK：** 继续 6.4.7
+- **OK：** 继续 6.3.3.7
 - **REJECT：** **硬停止。** 输出：
   > "⛔ 检测到当前本地 <target-branch> 不是远端的 fast-forward 后代。推送将被拒绝或覆盖远端。
   > 请检查 `git log --oneline --graph origin/<target-branch> HEAD`，确认原因后手动处理。"
 
-#### 6.4.7 推送到远端
+#### 6.3.3.7 推送到远端
 
 ```bash
 git push origin <target-branch>
@@ -830,12 +1123,12 @@ git push origin <target-branch>
 
 ⚠️ **绝对禁止 `git push --force`、`git push --force-with-lease`、或任何形式的强制推送。**
 
-- **推送成功：** 继续 6.4.8
+- **推送成功：** 继续 6.3.3.8
 - **推送被拒绝：** **硬停止。** 输出：
-  > "⛔ 推送到远端被拒绝。远端在 6.4.6 之后有新的提交，或存在其他冲突。
-  > 请从 6.4.1 重新执行（重新 fetch 并验证）。"
+  > "⛔ 推送到远端被拒绝。远端在 6.3.3.6 之后有新的提交，或存在其他冲突。
+  > 请从 6.3.3.1 重新执行（重新 fetch 并验证）。"
 
-#### 6.4.8 推送后远端验证
+#### 6.3.3.8 推送后远端验证
 
 ```bash
 # 确认远端目标分支 HEAD 与本地一致
@@ -844,11 +1137,11 @@ REMOTE=$(git rev-parse origin/<target-branch>)
 [ "$LOCAL" = "$REMOTE" ] && echo "✅ 推送成功，远端已更新" || echo "REJECT: 远端与本地不一致"
 ```
 
-- **OK：** 进入 6.5 清理
+- **OK：** 进入 6.3.4 清理
 - **不一致：** 输出：
   > "⚠️ 推送后远端与本地不一致，可能是推送未完成或远端 hook 修改了提交。请检查 `git log origin/<target-branch>`。"
 
-### 6.5 自动清理开发环境副本（worktree）
+#### 6.3.4 自动清理开发环境副本（worktree）
 
 提交成功后，自动删除 worktree。读取 `devflow/<feature>/state.json` 中 `isolation.path` 和 `isolation.branch`。
 
@@ -875,7 +1168,7 @@ git branch -d <feature>  # 安全删除（仅当已合并）
 # git branch -D <feature>
 ```
 
-清理前确认 worktree 内无未提交变更（Phase 6.3 已保证）。清理失败时给出明确提示，包括：
+清理前确认 worktree 内无未提交变更（Phase 6.2 已保证）。清理失败时给出明确提示，包括：
 - `git worktree remove` 报错（如 worktree 被锁定）
 - 残留进程占用文件（Windows 常见）
 - 提供手动清理命令
@@ -891,7 +1184,7 @@ rm -rf .claude/worktrees/devflow-<feature>
 
 并跳过 `git worktree prune` / `git branch -d`（v2.4 副本不是 git worktree，feature branch 需用户手动管理）。
 
-### 6.6 标记完成
+#### 6.3.5 标记完成
 
 更新 `devflow/<feature>/state.json`：
 
@@ -904,9 +1197,80 @@ rm -rf .claude/worktrees/devflow-<feature>
 
 输出："DevFlow v3.0 流程完成。跟踪文件保存在 devflow/<feature>/ 目录。"
 
-### 6.7 保留会话
+#### 6.3.6 保留会话
 
 如果用户选择保留会话，状态文件标记 `phase: "completed"`，worktree 可以保留或手动清理。
+
+### 6.4 feat 分支模式收尾
+
+```bash
+# 1. 切到 target，安全同步远端
+git checkout <target-branch>
+git fetch origin
+git merge --ff-only origin/<target-branch>   # 失败则硬停止
+
+# 2. 切到 feat，把 target 最新内容合并进来
+git checkout <feature>
+git merge <target-branch>                    # 处理冲突
+
+# 3. 重跑当前 feature 测试用例
+# ...
+
+# 4. 切回 target，把 feat 合并进去（--no-ff）
+git checkout <target-branch>
+git merge --no-ff <feature>
+
+# 5. 推送前 fast-forward 预检
+git merge-base --is-ancestor origin/<target-branch> HEAD && echo "OK" || echo "REJECT"
+# OK：继续下一步
+# REJECT：硬停止。本地 target 不是远端的 fast-forward 后代，禁止推送。
+
+# 6. 推送
+git push origin <target-branch>
+
+# 推送后验证
+LOCAL=$(git rev-parse HEAD)
+REMOTE=$(git rev-parse origin/<target-branch>)
+[ "$LOCAL" = "$REMOTE" ] && echo "✅ 推送成功" || echo "⚠️ 远端与本地不一致"
+
+# 7. 保留 feat 分支，不删除
+```
+
+### 6.5 main 分支模式收尾
+
+```bash
+# 1. 切到 target，安全同步远端
+git checkout <target-branch>
+git fetch origin
+git merge --ff-only origin/<target-branch>   # 失败则硬停止
+
+# 2. 推送前 fast-forward 预检
+git merge-base --is-ancestor origin/<target-branch> HEAD && echo "OK" || echo "REJECT"
+# OK：继续下一步
+# REJECT：硬停止。本地 target 不是远端的 fast-forward 后代，禁止推送。
+
+# 3. 推送
+git push origin <target-branch>
+
+# 推送后验证
+LOCAL=$(git rev-parse HEAD)
+REMOTE=$(git rev-parse origin/<target-branch>)
+[ "$LOCAL" = "$REMOTE" ] && echo "✅ 推送成功" || echo "⚠️ 远端与本地不一致"
+```
+
+注意：
+
+- main 模式不执行 catch-up merge（已在 target 上）
+- 仍需执行 `git merge --ff-only origin/<target-branch>` 安全检查
+- 推送前同样做 fast-forward 预检
+
+### 6.6 清理总结
+
+- **worktree 模式**：`ExitWorktree remove` + 删除 feature 分支
+- **feat 模式**：无 worktree 清理，保留 feature 分支
+- **main 模式**：无 worktree 清理，无分支删除
+
+所有模式最后更新 `state.json`：`phase: "completed"`。
 
 ---
 
@@ -932,7 +1296,7 @@ rm -rf .claude/worktrees/devflow-<feature>
 
 | 从 → 到 | 必须满足的条件 |
 |---------|---------------|
-| clarify → breakdown | 用户明确回复"确认"/"Yes"/"Y"；feature 名称确认；worktree 创建成功 |
+| clarify → breakdown | 用户明确回复"确认"/"Yes"/"Y"；feature 名称确认；会话初始化成功 |
 | breakdown → blueprint | 用户明确回复"确认"/"Yes"/"Y"；完整 R-xxx 清单已确认；所有待澄清项已解决 |
 | blueprint → implement | 用户明确回复"确认"/"Yes"/"Y"；完整设计方案 + TC 清单已确认 |
 | implement → verify | 用户明确回复"确认"/"Yes"/"Y"；完整 T-xxx 已完成 |
@@ -951,6 +1315,7 @@ rm -rf .claude/worktrees/devflow-<feature>
   "created_at": "2026-06-24T14:30:00+08:00",
   "version": "3.0",
   "isolation": {
+    "mode": "worktree",
     "type": "worktree",
     "path": ".claude/worktrees/devflow-user-auth",
     "branch": "user-auth",
@@ -973,8 +1338,10 @@ rm -rf .claude/worktrees/devflow-<feature>
 - `checkpoints` 记录每个阶段的完成状态
 - `open_questions` 记录未澄清问题，进入下一阶段前必须清空或得到用户确认
 - `rollback_history` 记录回退历史，便于追踪
-- `isolation` 记录 worktree 元数据（v3.0 新增），Phase 6.5 清理时读取
+- `isolation` 记录会话隔离元数据（v3.0 新增），Phase 6 按模式清理时读取
 - 恢复时读取 `phase`，跳转到对应阶段入口
+
+> `mode` 是路由 key，决定初始化、CWD 守卫和 Phase 6 收尾行为。旧 state.json 无 `mode` 字段时默认视为 `worktree`。
 
 ---
 
@@ -993,10 +1360,30 @@ rm -rf .claude/worktrees/devflow-<feature>
 | 合并验证发现冲突 | 停止流程，提示人工解决，不允许自动覆盖 |
 | 本地与远端分叉（--ff-only 失败） | **硬停止**，提示用户手动检查 `git log --oneline --graph` 确认分叉原因 |
 | 推送前安全预检失败 | **硬停止**，本地不是远端的 fast-forward 后代，禁止推送 |
-| git push 被远端拒绝 | **硬停止**，从 6.4.1 重新执行 |
+| git push 被远端拒绝 | **硬停止**，worktree 模式从 6.3.3.1 重新执行；feat 模式从 6.4 第 1 步重新执行；main 模式从 6.5 第 1 步重新执行 |
 | 远端验证不一致 | 提示用户检查 `git log origin/<target-branch>` |
 | git push --force | **绝对禁止。** 任何情况下不允许使用 |
 | worktree 清理失败 | 给出明确提示，由用户手动处理 |
+
+### 旧会话兼容
+
+- 现有 v3.0 `state.json` 若缺少 `isolation.mode` 字段，恢复时默认视为 `worktree`
+- v2.4 全量副本会话（`isolation.type == "fullcopy"`）仍按原有 v2.4 兼容逻辑处理，不受本模式选择影响
+
+### 模式间迁移（按需执行）
+
+当用户明确提出切换模式时，AI 可协助执行：
+
+| 源模式 | 目标模式 | 操作步骤 |
+|--------|----------|----------|
+| main | feat | `git stash` → `git checkout -b <feature>` → `git stash pop` → 更新 `state.json` 的 `isolation.mode`/`branch`/`path` |
+| feat | main | `git reset --soft HEAD~N`（N 为本次会话产生的 commit 数）→ `git stash` → `git checkout <target-branch>` → `git stash pop` → 更新 `state.json` |
+| main | worktree | `git stash` → `git checkout -b <feature>` → `git worktree add .claude/worktrees/devflow-<feature> <feature>` → `EnterWorktree` → `git stash pop` → 更新 `state.json` |
+| worktree | main | 在 worktree 中 `git reset --soft HEAD~N`（N 为本次会话产生的 commit 数）→ `git stash` → 切回主仓库 `git checkout <target-branch>` → `git stash pop` → 更新 `state.json` |
+| feat | worktree | 在 feat 分支上 `git worktree add .claude/worktrees/devflow-<feature> <feature>` → `EnterWorktree` → 复制 `devflow/<feature>/` 跟踪文件到 worktree → 更新 `state.json` |
+| worktree | feat | 切回主仓库 `git checkout <feature>` → 复制 worktree 中的 `devflow/<feature>/` 跟踪文件到主仓库 → 更新 `state.json` |
+
+迁移不是主流程功能，仅应用户明确要求时执行。迁移后必须重新做 CWD 守卫验证。
 
 ---
 
@@ -1008,4 +1395,4 @@ rm -rf .claude/worktrees/devflow-<feature>
 
 ---
 
-*DevFlow v3.0 — 单一入口，git worktree 隔离，策略菜单补充运行时，合并验证，闭环管理。*
+*DevFlow v3.0 — 单一入口，多模式会话隔离（worktree / feat / main），策略菜单补充运行时，合并验证，闭环管理。*
