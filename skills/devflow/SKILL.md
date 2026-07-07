@@ -215,11 +215,12 @@ Phase 1.4: 按模式初始化会话
 
 ### 1.4 初始化会话
 
-模式选择完成，且（如适用）Feature 名称确认后，执行以下步骤。
+Feature 名称确认且模式选择完成后，按所选模式初始化会话。三种模式共享前置步骤 1.4.1 和 1.4.2，之后进入各自的初始化路径。最终通过 `state.json` 中的 `isolation.mode` 记录所选模式。
 
 #### 1.4.1 自动识别目标分支
 
 检查 `master` 和 `main`，按以下优先级：
+
 - 仅存在 `main` → 使用 `main`
 - 仅存在 `master` → 使用 `master`
 - 同时存在 → 默认使用 `main`
@@ -227,53 +228,98 @@ Phase 1.4: 按模式初始化会话
 
 #### 1.4.2 检查冲突
 
-检查是否已存在同名 branch 或开发环境目录：
-```bash
-git branch --list <feature>
-ls -d .claude/worktrees/devflow-<feature> 2>/dev/null  # Unix
-# 或 Test-Path .claude/worktrees/devflow-<feature>      # Windows
-```
-- 如果存在，报错："feature 名称 `<feature>` 已存在（branch 或开发环境），请更换名称。"
-- 不存在则继续
+- **worktree / feat 模式**：检查是否已存在同名 branch 或开发环境目录
+  ```bash
+  git branch --list <feature>
+  ls -d .claude/worktrees/devflow-<feature> 2>/dev/null
+  ```
+  - 存在：报错 "feature 名称 `<feature>` 已存在（branch 或开发环境），请更换名称。"
+  - 不存在：继续
 
-#### 1.4.3 创建 feature branch
+- **main 模式**：Step 0 已检查未完成的 main 模式会话，此处不再重复
+
+#### 1.4.3 worktree 模式初始化
+
+执行当前 v3.0 的初始化流程：
+
+```bash
+git checkout -b <feature>
+git checkout <target-branch>
+git worktree add .claude/worktrees/devflow-<feature> <feature>
+EnterWorktree path=".claude/worktrees/devflow-<feature>"
+```
+
+然后按 1.4.7 补充运行时环境。
+
+`state.json` 的 `isolation`：
+
+```json
+"isolation": {
+  "mode": "worktree",
+  "type": "worktree",
+  "path": ".claude/worktrees/devflow-<feature>",
+  "branch": "<feature>",
+  "target_branch": "<target-branch>"
+}
+```
+
+#### 1.4.4 feat 分支模式初始化
 
 ```bash
 git checkout -b <feature>
 ```
 
-#### 1.4.4 创建 git worktree（秒级）
+不创建 worktree，留在主仓库当前目录。`devflow/<feature>/` 目录创建在主仓库中。
+
+`state.json` 的 `isolation`：
+
+```json
+"isolation": {
+  "mode": "feat-branch",
+  "path": ".",
+  "branch": "<feature>",
+  "target_branch": "<target-branch>"
+}
+```
+
+#### 1.4.5 main 分支模式初始化
 
 ```bash
-# 切回目标分支（如果当前在 feature branch）
 git checkout <target-branch>
-
-# 用 git worktree add 创建隔离环境
-git worktree add .claude/worktrees/devflow-<feature> <feature>
 ```
 
-此时 worktree 只包含 git-tracked 文件。无 `node_modules`、无 `.env`、无本地数据。
+不创建分支，不创建 worktree。`feature` 名称仅用于 `devflow/<feature>/` 目录名。
 
-#### 1.4.5 切换 CWD 到 worktree
+`state.json` 的 `isolation`：
 
-**方案 A（优先，Claude Code 环境）：使用 EnterWorktree 原生工具**
+```json
+"isolation": {
+  "mode": "main-branch",
+  "path": ".",
+  "branch": "<target-branch>",
+  "target_branch": "<target-branch>"
+}
+```
 
-调用 `EnterWorktree` 工具，参数：
-- `path`: `.claude/worktrees/devflow-<feature>`
+#### 1.4.6 工作区状态提示（feat/main 模式专用）
 
-工具调用成功后，session CWD 自动切换到 worktree 目录。后续所有 shell 命令、文件操作均在 worktree 内执行。
-
-**方案 B（fallback，非 Claude Code 环境）：手动 cd**
+因为 feat/main 模式直接修改主仓库工作区，初始化前检查：
 
 ```bash
-cd .claude/worktrees/devflow-<feature>
+git status --short
 ```
 
-每个 Phase 开头会执行 CWD 守卫（见各 Phase 起始说明），发现 CWD 不在 worktree 时会警告并尝试恢复。
+- **无未提交变更**：直接继续
+- **存在未提交变更**：提示但不阻塞：
+  > "检测到工作区存在未提交变更。若继续，这些变更将被纳入本次 DevFlow 会话的开发范围。是否继续？
+  > - 回复 **继续**：开始本次会话
+  > - 回复 **清理**：请先 stash / commit / 丢弃变更后再开始"
 
-#### 1.4.6 补充运行时环境（策略菜单）
+worktree 模式不需要此检查。
 
-worktree 不含 gitignored 的运行时文件。根据项目实际情况，按以下策略菜单选择处理方式：
+#### 1.4.7 补充运行时环境（策略菜单）
+
+worktree 模式下不含 gitignored 的运行时文件，需按策略菜单补充。feat/main 模式下主仓库已有运行时环境，通常无需额外补充，但可按项目情况确认。
 
 | 策略 | 适用场景 | 命令 |
 |------|---------|------|
@@ -321,9 +367,9 @@ data/fixtures/
 
 这样后续创建 worktree 时 `node_modules` 自动 symlink，无需每次手动处理。
 
-#### 1.4.7 初始化状态目录和文件
+#### 1.4.8 初始化状态目录和文件
 
-在 worktree 内创建 `devflow/<feature>/` 目录，写入 `state.json`：
+在当前 `isolation.path` 指定的工作目录内创建 `devflow/<feature>/` 目录，写入 `state.json`：
 
 ```json
 {
@@ -351,11 +397,11 @@ data/fixtures/
 }
 ```
 
-新增 `isolation` 字段记录 worktree 元数据，便于 Phase 6.5 清理时定位。
+新增 `isolation` 字段记录会话隔离元数据，便于后续 CWD 守卫和 Phase 6 清理时定位。
 
-#### 1.4.8 提示用户
+#### 1.4.9 提示用户
 
-> "会话 `<feature>` 已在 git worktree `.claude/worktrees/devflow-<feature>` 中准备就绪（基于 `<target-branch>`）。已根据项目情况补充运行时环境（node_modules: <策略>; 配置/数据: <策略>）。可立即启动服务进行验收。后续所有文件操作将在该 worktree 内进行。"
+> "会话 `<feature>` 已准备就绪（模式：`<isolation.mode>`；路径：`<isolation.path>`；基于 `<target-branch>`）。已根据项目情况补充运行时环境（如适用）。可立即启动服务进行验收。后续所有文件操作将在当前工作目录内进行。"
 
 ### 1.5 进入下一阶段
 
