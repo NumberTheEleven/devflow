@@ -44,7 +44,7 @@ Phase 6: 流程完成 → 合并验证 + 提交 + 按模式清理
 
 ## Step 0: 入口检测
 
-收到 `/devflow` 请求后，首先判断当前环境。v3.0 起，会话隔离基于 git worktree，检测需同时识别 v3.0 worktree 会话和 v2.4 全量副本遗留会话。
+收到 `/devflow` 请求后，首先判断当前环境。v3.0 起，会话隔离支持三种模式：git worktree 分库开发、feat 分支开发、main 分支开发，检测需同时识别 v3.0 worktree 会话、feat/main 主仓库会话和 v2.4 全量副本遗留会话。
 
 ### 0.1 计算 git 拓扑标识
 
@@ -84,7 +84,7 @@ $inV24Copy = ($PWD.Path -like '*/.claude/worktrees/devflow-*' -or $PWD.Path -lik
 
 | `IN_WORKTREE` | `IN_V24_COPY` | 判定 | 动作 |
 |---------------|---------------|------|------|
-| `false` | `false` | 在主仓库（非开发环境） | 继续 0.4 检查旧版活跃会话 |
+| `false` | `false` | 在主仓库（非开发环境） | 继续 0.4 检查活跃会话（包括 feat/main 模式会话） |
 | `false` | `true` | 在 v2.4 全量副本中 | 读取 `devflow/<feature>/state.json` 恢复会话（视为 v2.4 会话） |
 | `true` | (任意) | 在 v3.0 git worktree 中 | 读取 `devflow/<feature>/state.json` 恢复会话 |
 
@@ -94,7 +94,34 @@ $inV24Copy = ($PWD.Path -like '*/.claude/worktrees/devflow-*' -or $PWD.Path -lik
 
 ### 0.4 检测是否有活跃会话
 
-检查主仓库根目录下是否存在未完成的旧版 `devflow/state.json`（仅在判定处于主仓库时执行）：
+先在主仓库根目录下扫描 `devflow/*/` 中未完成的 feat/main 模式会话（仅在判定处于主仓库时执行）：
+
+```bash
+# 伪代码
+for dir in devflow/*/; do
+  state_file="$dir/state.json"
+  [ -f "$state_file" ] || continue
+  mode=$(jq -r '.isolation.mode // "worktree"' "$state_file" 2>/dev/null)
+  phase=$(jq -r '.phase' "$state_file" 2>/dev/null)
+  feature=$(basename "$dir")
+  if [ "$phase" != "completed" ] && [ "$mode" = "feat-branch" -o "$mode" = "main-branch" ]; then
+    echo "检测到未完成的 $mode 会话（feature: $feature，当前阶段：$phase）。是否恢复该会话？"
+    # 恢复会话：读取 state.json，跳转到对应 phase
+  fi
+done
+```
+
+- **发现一个未完成的 feat/main 模式会话：** 询问用户是否恢复该会话
+  - 用户确认恢复：读取 `devflow/<feature>/state.json`，跳转到 `phase` 对应阶段入口
+  - 用户拒绝恢复：继续检查旧版 `devflow/state.json`
+
+- **发现多个未完成的 feat/main 模式会话：** 列出所有未完成会话，询问用户恢复哪一个
+  - 用户选择其中一个：读取对应 `state.json` 并跳转
+  - 用户拒绝恢复：继续检查旧版 `devflow/state.json`
+
+- **未发现未完成的 feat/main 模式会话：** 继续检查旧版 `devflow/state.json`（见下方）。
+
+再检查主仓库根目录下是否存在未完成的旧版 `devflow/state.json`：
 
 - **存在且 `phase` 不是 `"completed"`：** 说明有未完成的旧版 DevFlow 会话。
   - 输出："检测到主仓库存在未完成的旧版 DevFlow 会话（feature: `<feature>`，当前阶段：`<phase>`）。v3.0 起会话需要在开发环境副本中运行，请先完成或手动清理该会话后再开始新会话。"
@@ -216,7 +243,7 @@ Phase 1.4: 按模式初始化会话
 
 ### 1.4 初始化会话
 
-Feature 名称确认且模式选择完成后，按所选模式初始化会话。三种模式共享前置步骤 1.4.1、1.4.2 和 1.4.6（工作区状态提示），之后进入各自的初始化路径：1.4.3（worktree）、1.4.4（feat）、1.4.5（main）。最终通过 `state.json` 中的 `isolation.mode` 记录所选模式。
+Feature 名称确认且模式选择完成后，按所选模式初始化会话。三种模式共享前置步骤 1.4.1 和 1.4.2。1.4.6 为 feat/main 模式的工作区状态提示，worktree 模式跳过。之后进入各自的初始化路径：1.4.3（worktree）、1.4.4（feat）、1.4.5（main）。最终通过 `state.json` 中的 `isolation.mode` 记录所选模式。
 
 #### 1.4.1 自动识别目标分支
 
@@ -811,7 +838,7 @@ if ($mode -eq "worktree") {
 
 Phase 6 的收尾逻辑按 `isolation.mode` 分为三条路径：
 
-- `worktree`：保持现有 v3.0 流程（合并验证 → 预完成提交 → 合并到 target → 删除 worktree + 分支）
+- `worktree`：保持现有 v3.0 流程（预完成提交 → 合并验证 → 合并到 target → 清理 worktree）
 - `feat-branch`：在主仓库中把 target 同步到 feat，再合并 feat 到 target，保留 feat 分支
 - `main-branch`：在主仓库中同步 target 后直接 push，不创建/删除分支
 
@@ -912,7 +939,7 @@ if ($local -eq $remote) { Write-Host "OK: 本地与远端一致" } else { Write-
 #### 6.3.1.3 计算基准 commit
 
 ```bash
-git merge-base <target-branch> <feature-branch>
+git merge-base <target-branch> <feature>
 ```
 
 #### 6.3.1.4 检查目标分支新变更
@@ -975,7 +1002,7 @@ merge 完成后，重新跑当前 feature 的测试用例和验收规格（`devf
 
 #### 6.3.2 预完成提交（兜底保护）
 
-> 预完成提交已在 6.2 中统一执行。worktree 模式下不再重复，如检测到未提交变更应返回 6.2 处理。
+> 预完成提交已在 6.2 中统一执行。worktree 模式进入 6.3.1 合并验证前应确保工作区干净；如不干净，需先处理未提交变更再继续。
 
 #### 6.3.3 合并到目标分支（严格安全流程）
 
@@ -1015,10 +1042,10 @@ if ($local -eq $remote) { Write-Host "OK: 本地与远端一致" } else { Write-
 
 ```bash
 # 确认 feature branch 存在且与 worktree 中的一致
-git log --oneline -1 <feature-branch>
+git log --oneline -1 <feature>
 ```
 
-读取 `devflow/<feature>/state.json` 确认 `isolation.branch` 与 `<feature-branch>` 一致。
+读取 `devflow/<feature>/state.json` 确认 `isolation.branch` 与 `<feature>` 一致。
 
 #### 6.3.3.3 切换到目标分支
 
@@ -1035,7 +1062,7 @@ git branch --show-current
 #### 6.3.3.4 合并 feature 分支（--no-ff 强制生成 merge commit）
 
 ```bash
-git merge --no-ff <feature-branch>
+git merge --no-ff <feature>
 ```
 
 **只允许 `--no-ff`，不允许 fast-forward、squash、rebase。**
@@ -1066,7 +1093,7 @@ git branch --show-current
 验证 checklist：
 - HEAD 是一个 merge commit（有两个 parent）
 - 第一个 parent 是合并前的 `<target-branch>` HEAD
-- 第二个 parent 是 `<feature-branch>` 的最新 commit
+- 第二个 parent 是 `<feature>` 的最新 commit
 - 当前分支是 `<target-branch>`
 
 如果任一项不满足 → 停止，检查输出。
