@@ -29,7 +29,7 @@ Phase 6: 流程完成 → 合并验证 + 提交 + 按模式清理
 **核心原则：**
 - 唯一入口：`/devflow`，没有子命令
 - clarify 阶段不产生任何文件写入
-- clarify 确认后创建 git worktree 作为开发环境（v3.0 起），所有后续文件改动在该 worktree 内进行
+- clarify 确认且模式选择完成后，按所选模式初始化开发环境（worktree / feat 分支 / main 分支），所有后续文件改动在该开发环境中进行
 - v2.4 遗留的全量副本目录（`GIT_DIR == GIT_COMMON` 但路径在 `.claude/worktrees/devflow-*` 下）仍可识别并恢复
 - 每个 feature 的 DevFlow 文件隔离在 `devflow/<feature>/` 目录下，随 feature 分支提交
 - **每个阶段结束时必须获得用户显式确认（"确认"/"Yes"/"Y"），才能进入下一阶段**
@@ -1266,7 +1266,7 @@ REMOTE=$(git rev-parse origin/<target-branch>)
 
 | 从 → 到 | 必须满足的条件 |
 |---------|---------------|
-| clarify → breakdown | 用户明确回复"确认"/"Yes"/"Y"；feature 名称确认；worktree 创建成功 |
+| clarify → breakdown | 用户明确回复"确认"/"Yes"/"Y"；feature 名称确认；会话初始化成功 |
 | breakdown → blueprint | 用户明确回复"确认"/"Yes"/"Y"；完整 R-xxx 清单已确认；所有待澄清项已解决 |
 | blueprint → implement | 用户明确回复"确认"/"Yes"/"Y"；完整设计方案 + TC 清单已确认 |
 | implement → verify | 用户明确回复"确认"/"Yes"/"Y"；完整 T-xxx 已完成 |
@@ -1308,7 +1308,7 @@ REMOTE=$(git rev-parse origin/<target-branch>)
 - `checkpoints` 记录每个阶段的完成状态
 - `open_questions` 记录未澄清问题，进入下一阶段前必须清空或得到用户确认
 - `rollback_history` 记录回退历史，便于追踪
-- `isolation` 记录 worktree 元数据（v3.0 新增），Phase 6.5 清理时读取
+- `isolation` 记录会话隔离元数据（v3.0 新增），Phase 6 按模式清理时读取
 - 恢复时读取 `phase`，跳转到对应阶段入口
 
 > `mode` 是路由 key，决定初始化、CWD 守卫和 Phase 6 收尾行为。旧 state.json 无 `mode` 字段时默认视为 `worktree`。
@@ -1365,4 +1365,4 @@ REMOTE=$(git rev-parse origin/<target-branch>)
 
 ---
 
-*DevFlow v3.0 — 单一入口，git worktree 隔离，策略菜单补充运行时，合并验证，闭环管理。*
+*DevFlow v3.0 — 单一入口，多模式会话隔离（worktree / feat / main），策略菜单补充运行时，合并验证，闭环管理。*
