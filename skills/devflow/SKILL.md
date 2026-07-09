@@ -14,17 +14,24 @@ argument-hint: [模糊需求描述]
 Step 0: 入口检测 → git 拓扑 + 路径检测，判断是否在 worktree / 是否有活跃会话
     ↓
 Phase 1: 需求澄清 (clarify) — 纯对话，不产生文件
-    ↓ checkpoint（显式确认）
+    ↓ checkpoint（显式确认 / 可切换自循环）
 Phase 2: 需求拆解 (breakdown) → R-xxx 清单
-    ↓ checkpoint（显式确认）
+    ↓ checkpoint（显式确认 / 可切换自循环）
 Phase 3: 方案蓝图 (blueprint) → 流程图 + 设计规格 + TC-xxx
-    ↓ checkpoint（显式确认）
+    ↓ checkpoint（显式确认 / 可切换自循环）
 Phase 4: 编码实现 (implement) → T-xxx 任务 + 架构图 + 代码
-    ↓ checkpoint（显式确认）
+    ↓ checkpoint（显式确认 / 可切换自循环）
 Phase 5: 测试验证 (verify) → L1烟雾 + L2交互 + L3手工，证据驱动
-    ↓ checkpoint（人工验收）
+    ↓ checkpoint（人工验收 / 自循环下自动修复）
 Phase 6: 流程完成 → 合并验证 + 提交 + 按模式清理
 ```
+
+**自循环模式（Autonomous / Auto）：**
+- 用户在任意 checkpoint 可输入 `auto` / `autonomous` / `自循环`，将后续阶段交给 AI 自主推进
+- AI 接管后，按阶段自评 checklist 自行确认并推进
+- implement ↔ verify 之间形成自修复小循环；根因在上游时自动回退
+- 达到超时或最大迭代时熔断暂停，向用户报告
+- 最终必须完成 Phase 6 的 commit + push 才退出
 
 **核心原则：**
 - 唯一入口：`/devflow`，没有子命令
@@ -39,6 +46,7 @@ Phase 6: 流程完成 → 合并验证 + 提交 + 按模式清理
 - **流程节点回退是正常场景，在遇到阻塞时主动提出，不允许自行假设继续**
 - 流程全部通过后：必须经用户人工验收，确认所有更改已提交，再标记完成
 - **绝对禁止 `git push --force`。** 任何阶段的任何操作都不允许强制推送。目标分支提交只能通过正常 merge 流程
+- **自循环模式：** 用户在 checkpoint 输入 `auto` / `autonomous` / `自循环` 后，AI 按自评 checklist 自动推进；常规推进不打扰用户，只在阻塞/完成/熔断时报告
 
 ### 编号规范
 
@@ -107,7 +115,7 @@ $inV24Copy = ($PWD.Path -like '*/.claude/worktrees/devflow-*' -or $PWD.Path -lik
 
 ### 0.4 检测是否有活跃会话
 
-先在主仓库根目录下扫描 `devflow/*/` 中未完成的 feat/main 模式会话（仅在判定处于主仓库时执行）：
+先在主仓库根目录下扫描 `devflow/*/` 中未完成的 feat/main 模式会话（仅在判定处于主仓库时执行）。扫描时同时识别是否启用了自循环模式：
 
 ```bash
 # 伪代码
@@ -116,15 +124,21 @@ for dir in devflow/*/; do
   [ -f "$state_file" ] || continue
   mode=$(jq -r '.isolation.mode // "worktree"' "$state_file" 2>/dev/null)
   phase=$(jq -r '.phase' "$state_file" 2>/dev/null)
+  autonomous=$(jq -r '.autonomous.enabled // false' "$state_file" 2>/dev/null)
   feature=$(basename "$dir")
   if [ "$phase" != "completed" ] && [ "$mode" = "feat-branch" -o "$mode" = "main-branch" ]; then
-    echo "检测到未完成的 $mode 会话（feature: $feature，当前阶段：$phase）。是否恢复该会话？"
+    if [ "$autonomous" = "true" ]; then
+      echo "检测到未完成的自循环会话（feature: $feature，当前阶段：$phase）。是否恢复该会话？"
+    else
+      echo "检测到未完成的 $mode 会话（feature: $feature，当前阶段：$phase）。是否恢复该会话？"
+    fi
     # 恢复会话：读取 state.json，跳转到对应 phase
   fi
 done
 ```
 
 - **发现一个未完成的 feat/main 模式会话：** 询问用户是否恢复该会话
+  - 若 `autonomous.enabled == true`，优先提示"自循环会话"，恢复后按自循环规则继续推进
   - 用户确认恢复：读取 `devflow/<feature>/state.json`，跳转到 `phase` 对应阶段入口
   - 用户拒绝恢复：继续检查旧版 `devflow/state.json`
 
@@ -223,9 +237,10 @@ Phase 1.5: 按模式初始化会话
 > - 约束：...
 > - 待澄清项（如有）：...
 >
-> 请确认以上内容是否准确、完整。回复 **"确认" / "Yes" / "Y"** 进入需求拆解；否则请指出需要修改的地方。"
+> 请确认以上内容是否准确、完整。回复 **"确认" / "Yes" / "Y"** 进入需求拆解；回复 **`auto` / `autonomous` / `自循环`** 进入需求拆解并由 AI 自动推进后续阶段；否则请指出需要修改的地方。"
 
 - **用户回复 "确认" / "Yes" / "Y"：** 进入 Phase 1.3（选择开发模式）
+- **用户回复 `auto` / `autonomous` / `自循环`：** 进入 Phase 1.3，并在会话初始化后切换为自循环模式
 - **其他任何回复（包括"需要修改"、指出问题、部分肯定、沉默等）：** 一律视为需要修改。针对用户反馈修正后，**重新输出完整的需求总结**，再次等待确认
 - **不回复：** 自然暂停。下次 `/devflow` 时通过 Step 0 检测恢复。
 
@@ -458,19 +473,42 @@ devflow/*/screenshots/
     "blueprint": "pending",
     "implement": "pending",
     "verify": "pending"
+  },
+  "autonomous": {
+    "enabled": false,
+    "status": "idle",
+    "started_at": null,
+    "started_from": null,
+    "resume_phase": null,
+    "current_loop": 0,
+    "max_loops": 20,
+    "timeout_at": null,
+    "last_report_at": null,
+    "repair_cycles": {},
+    "rollback_history": []
   }
 }
 ```
 
 新增 `isolation` 字段记录会话隔离元数据，便于后续 CWD 守卫和 Phase 6 清理时定位。
+`autonomous` 字段预留自循环状态。
+
+**自循环初始化：**
+- 若用户在 Phase 1.2 输入 `auto` / `autonomous` / `自循环`，初始化时设置 `autonomous.enabled = true`，`autonomous.status = "running"`，`autonomous.started_at` 为当前时间，`autonomous.started_from = "clarify"`，`autonomous.timeout_at = 当前时间 + 4 小时`
+- 若用户在后续 checkpoint 才触发自循环，则在进入下一阶段前更新上述字段
+- 若未触发自循环，`autonomous.enabled` 保持 `false`
 
 #### 1.5.9 提示用户
 
 > "会话 `<feature>` 已准备就绪（模式：`<isolation.mode>`；路径：`<isolation.path>`；基于 `<target-branch>`）。已根据项目情况补充运行时环境（如适用）。可立即启动服务进行验收。后续所有文件操作将在当前工作目录内进行。"
+> 
+> 若已启用自循环模式，追加："自循环模式已启用，AI 将自动推进后续阶段。"
 
 ### 1.6 进入下一阶段
 
 会话初始化后，自动进入 Phase 2（需求拆解）。
+
+**若已启用自循环：** 进入 Phase 2 后，AI 直接使用 breakdown checklist 自评并推进，不再展示 checkpoint 给用户。
 
 ---
 
@@ -549,9 +587,10 @@ if ($mode -eq "worktree") {
 
 > "需求拆解完成。共 N 项需求（R-001 ~ R-xxx），已保存到 devflow/<feature>/requirements.md。
 >
-> 请确认以上需求拆解是否准确、完整。回复 **确认 / Yes / Y** 进入方案蓝图；否则请指出需要修改的地方。"
+> 请确认以上需求拆解是否准确、完整。回复 **确认 / Yes / Y** 进入方案蓝图；回复 **`auto` / `autonomous` / `自循环`** 进入方案蓝图并由 AI 自动推进后续阶段；否则请指出需要修改的地方。"
 
 - **用户回复 "确认" / "Yes" / "Y"：** 进入 Phase 3
+- **用户回复 `auto` / `autonomous` / `自循环`：** 进入 Phase 3 并切换为自循环模式
 - **其他任何回复：** 视为需要修改。修正后重新输出完整清单，再次等待确认
 - **不回复：** 自然暂停。更新 `devflow/<feature>/state.json` 的 `phase` 为 `"blueprint"`。
 
@@ -628,7 +667,13 @@ if ($mode -eq "worktree") {
 
 > "方案蓝图完成。design.md + test-cases.md 已保存（TC-001 ~ TC-xxx）。
 >
-> 请确认以上方案蓝图是否准确、完整。回复 **确认 / Yes / Y** 进入编码实现；否则请指出需要修改的地方。"
+> 请确认以上方案蓝图是否准确、完整。回复 **确认 / Yes / Y** 进入编码实现；回复 **`auto` / `autonomous` / `自循环`** 进入编码实现并由 AI 自动推进后续阶段；否则请指出需要修改的地方。"
+
+- **用户回复 "确认" / "Yes" / "Y"：** 进入 Phase 4
+- **用户回复 `auto` / `autonomous` / `自循环`：** 进入 Phase 4 并切换为自循环模式
+- **其他任何回复：** 视为需要修改。修正后重新输出完整方案蓝图，再次等待确认
+- **不回复：** 自然暂停。更新 `state.json` 的 `phase` 为 `"implement"`。  
+- **自循环模式下：** AI 使用 blueprint checklist 自评，通过后自动进入 Phase 4。
 
 ---
 
@@ -692,6 +737,10 @@ if ($mode -eq "worktree") {
    - 有依赖任务按序执行
    - 每个 sub-agent: TDD 循环 → code review → commit
 5. **进度追踪：** 更新 `devflow/<feature>/tasks.md` 中各 T-xxx 的状态
+6. **自循环执行：**
+   - 若 `autonomous.enabled == true`，所有 T-xxx 完成后，AI 使用 implement checklist 自评
+   - 自评通过后自动进入 Phase 5，不等待用户确认
+   - 自评不通过时，自动修正并重新自评
 
 ### 4.2 实现中回退机制
 
@@ -702,10 +751,15 @@ if ($mode -eq "worktree") {
 - 技术约束导致原方案不可行
 - 前置文档无法指导当前工作
 
-**必须停止当前实现，主动提出：**
+**人工模式下必须停止当前实现，主动提出：**
 > "当前实现遇到阻塞：`<原因>`。按照需求拆解/方案蓝图无法继续推进。建议回退到 `<Phase 1/2/3>` 重新确认需求/拆解/设计。是否回退？"
 
 只有用户确认回退后，才允许回退并重新进入上游阶段。回退后必须重新完成该阶段并再次获得用户确认，才能继续。
+
+**自循环模式下：**
+- AI 自行判断阻塞是否可自愈
+- 若根因在上游阶段，自动回退并更新 `rollback_history`
+- 若无法自愈，暂停并报告用户
 
 ### 4.3 用户反馈与修正
 
@@ -713,14 +767,20 @@ if ($mode -eq "worktree") {
 1. 一律视为需要修改
 2. 不要只回复"已修改"或只修改局部
 3. **必须重新输出完整的编码实现状态**（任务清单 + 架构图 + 当前进度）
-4. 明确询问："以上是修正后的完整编码实现状态，请确认是否有问题。回复 **确认 / Yes / Y** 进入测试验证；否则请指出需要修改的地方。"
+4. 明确询问："以上是修正后的完整编码实现状态，请确认是否有问题。回复 **确认 / Yes / Y** 进入测试验证；回复 **`auto` / `autonomous` / `自循环`** 进入测试验证并由 AI 自动推进后续阶段；否则请指出需要修改的地方。"
 5. 只有用户明确回复确认后，才能进入 Phase 5
 
 ### 4.4 Checkpoint
 
 > "编码实现完成。所有 T-xxx 任务已完成，tasks.md 已更新。
 >
-> 请确认以上编码实现是否完整、符合预期。回复 **确认 / Yes / Y** 进入测试验证；否则请指出需要修改的地方。"
+> 请确认以上编码实现是否完整、符合预期。回复 **确认 / Yes / Y** 进入测试验证；回复 **`auto` / `autonomous` / `自循环`** 进入测试验证并由 AI 自动推进后续阶段；否则请指出需要修改的地方。"
+
+- **用户回复 "确认" / "Yes" / "Y"：** 进入 Phase 5
+- **用户回复 `auto` / `autonomous` / `自循环`：** 进入 Phase 5 并切换为自循环模式
+- **自循环模式下：** AI 使用 implement checklist 自评，通过后自动进入 Phase 5
+- **其他任何回复：** 视为需要修改。修正后重新输出完整编码实现状态，再次等待确认
+- **不回复：** 自然暂停。更新 `state.json` 的 `phase` 为 `"verify"`。
 
 ---
 
@@ -786,7 +846,13 @@ if ($mode -eq "worktree") {
    - L2 失败 → 功能 bug，建议重新执行对应 T-xxx
    - L3 失败 / 设计问题 → 建议回退到 Phase 3
    - 需求问题 → 建议回退到 Phase 1/2
-9. 生成统一验证报告（verification-log.md），包含三层结果 + 交互追踪 + 深度评分
+9. **自循环修复循环（autonomous.enabled == true）：**
+   - 验证失败时，AI 首先判断失败根因阶段
+   - 根因在 implement：自动返回 Phase 4 修复，`repair_cycles["implement-verify"]` 递增
+   - 根因在 blueprint/breakdown/clarify：自动回退到对应阶段，`rollback_history` 记录原因
+   - 修复/回退完成后重新推进到 verify
+   - 每次循环前检查 `max_loops` 与 `timeout_at`，超限则熔断暂停
+10. 生成统一验证报告（verification-log.md），包含三层结果 + 交互追踪 + 深度评分
 
 **Playwright 截图保存规范：**
 - 所有通过 `browser_take_screenshot` 捕获的截图，必须保存到 `devflow/<feature>/screenshots/`
@@ -809,7 +875,12 @@ if ($mode -eq "worktree") {
 > 请在实际环境中进行人工验收。确认验收通过后，才能进行归档和提交。
 > 回复 **确认 / Yes / Y** 表示人工验收通过，进入流程完成；否则请指出问题。"
 
-**不自动进入 Phase 6。** 必须等待用户明确回复确认后，才允许进入 Phase 6。
+**人工模式下不自动进入 Phase 6。** 必须等待用户明确回复确认后，才允许进入 Phase 6。
+
+**自循环模式下：**
+- AI 使用 verify checklist 自评（verification-log.md 完整、深度 100%、无失败项）
+- 自评通过后自动进入 Phase 6，不再询问人工验收
+- 自评不通过时，按 5.1 第 9 条执行修复循环或回退
 
 **深度不足或有失败项：**
 
@@ -820,9 +891,14 @@ if ($mode -eq "worktree") {
 > [回退到 blueprint/breakdown/clarify] 重新确认
 > [保留会话稍后继续]"
 
+**自循环模式下深度不足或有失败项：**
+- 优先自动返回 implement 修复
+- 若根因在上游，自动回退
+- 若无法自愈或达到熔断条件，暂停并报告
+
 ### 5.3 人工验收 Checkpoint
 
-验证通过后，必须增加独立的"人工验收" checkpoint：
+验证通过后，人工模式下必须增加独立的"人工验收" checkpoint：
 
 > "所有自动化验证已执行完毕。请进行人工验收：
 > 1. 打开验证报告 devflow/<feature>/verification-log.md
@@ -833,6 +909,8 @@ if ($mode -eq "worktree") {
 > 只有收到明确确认后，才会进入归档和提交。"
 
 只有用户明确回复确认后，才允许进入 Phase 6。
+
+**自循环模式下：** 跳过人工验收 checkpoint，由 AI 自评后直接推进到 Phase 6。
 
 ---
 
@@ -892,7 +970,14 @@ Phase 6 的收尾逻辑按 `isolation.mode` 分为三条路径：
 
 ### 6.1 确认
 
+**人工模式：**
+
 > "DevFlow 流程已通过人工验收。是否结束会话并提交？回复 **确认 / Yes / Y** 完成并提交；否则请说明。"
+
+**自循环模式：**
+- AI 自评 Phase 6 入口条件（verify 已通过、工作区可提交）
+- 自评通过后自动执行 6.2 及后续收尾流程
+- 收尾完成后输出完成报告，更新 `state.json`：`phase: "completed"`、`autonomous.status: "completed"`
 
 ### 6.2 预完成提交（兜底保护）
 
@@ -900,7 +985,7 @@ Phase 6 的收尾逻辑按 `isolation.mode` 分为三条路径：
 
 **目的：** 防止存在未提交文件（如下载的数据、临时配置等），会话结束后丢失。
 
-**注意：** 只有在 Phase 5 通过人工验收后，才执行提交。合并验证在后续 6.3/6.4/6.5 中按模式执行。
+**注意：** 只有在 Phase 5 通过验收后，才执行提交。人工模式下需用户明确确认；自循环模式下由 AI 自评通过后自动执行。合并验证在后续 6.3/6.4/6.5 中按模式执行。
 
 确认完成后，**必须先执行**以下步骤：
 
@@ -1236,11 +1321,16 @@ rm -rf .claude/worktrees/devflow-<feature>
 ```json
 {
   "phase": "completed",
-  "completed_at": "<ISO timestamp>"
+  "completed_at": "<ISO timestamp>",
+  "autonomous": {
+    "status": "completed",
+    "completed_at": "<ISO timestamp>"
+  }
 }
 ```
 
-输出："DevFlow v3.0 流程完成。跟踪文件保存在 devflow/<feature>/ 目录。"
+输出："DevFlow v3.0 流程完成。跟踪文件保存在 devflow/<feature>/ 目录。"  
+若处于自循环模式，追加输出完成报告。
 
 #### 6.3.6 保留会话
 
@@ -1325,27 +1415,123 @@ REMOTE=$(git rev-parse origin/<target-branch>)
 
 > "✅ [阶段名] 完成。
 >
-> 请确认以上结果是否准确、完整。回复 **确认 / Yes / Y** 进入下一阶段；否则请指出需要修改的地方。"
+> 请确认以上结果是否准确、完整。回复 **确认 / Yes / Y** 进入下一阶段；回复 **`auto` / `autonomous` / `自循环`** 进入下一阶段并由 AI 自动推进后续阶段；否则请指出需要修改的地方。"
 
 | 用户输入 | 行为 |
 |---------|------|
 | 确认 / Yes / Y / y / 是的 | 进入下一阶段 |
+| `auto` / `autonomous` / `自循环` | 切换为自循环模式，AI 使用自评 checklist 自动推进后续阶段 |
 | 其他任何回复（包括"需要修改"、指出问题、部分肯定、沉默、跳转请求等） | **一律视为需要修改**。修正后重新输出完整结果，再次等待确认 |
 | 不回复 | 自然暂停，更新状态文件 |
 
 **checkpoint 只提供"确认"一个明确选项。** 用户不确认就是需要修改。回退、跳转等需求通过用户在"需要修改"反馈中提出，或者由 AI 在发现阻塞时主动提出。
 
+**自循环模式下 checkpoint 的行为：**
+- AI 不展示 checkpoint 给用户，而是使用对应阶段的自评 checklist 自行判断
+- 自评通过后自动推进
+- 自评不通过时自动修正或回退
+- 仅在阻塞、熔断、完成时向用户发送汇总报告
+
+---
+
+## 自循环模式（Autonomous Mode）
+
+### 触发方式
+
+用户在任意 checkpoint 输入以下任一指令：
+- `auto`
+- `autonomous`
+- `自循环`
+
+### 启动报告
+
+切换为自循环模式后，输出：
+
+```
+🤖 已启用自循环模式
+- 起始阶段: <phase>
+- 目标: 完成整个 DevFlow 流程并提交推送
+- 最大循环: <max_loops>
+- 超时时间: <timeout_at>
+- 常规推进将不打扰你，遇到阻塞或完成时汇总报告。
+```
+
+### 自评 Checklist
+
+#### Clarify
+- [ ] 需求总结包含目标、包含项、排除项、成功标准、约束
+- [ ] 无 open_questions
+- [ ] 用户已确认（自循环起点必须是已确认状态）
+
+#### Breakdown
+- [ ] R-xxx 清单完整，编号连续
+- [ ] 每条 R-xxx 含优先级、依赖、验收标准
+- [ ] 无待澄清项
+
+#### Blueprint
+- [ ] design.md 包含流程图、规格边界、架构图、涉及文件
+- [ ] test-cases.md 为每条 R-xxx 编写 TC-xxx
+- [ ] TC 覆盖正常路径与异常路径
+
+#### Implement
+- [ ] T-xxx 全部完成
+- [ ] tasks.md 已更新状态
+- [ ] 代码已提交（至少一次 commit）
+- [ ] 前置文档（requirements.md + design.md）足以指导实现
+
+#### Verify
+- [ ] verification-log.md 已生成
+- [ ] L1/L2/L3 全部通过或已记录证据
+- [ ] 深度评分 100%
+
+#### Completed
+- [ ] 工作区干净或已提交
+- [ ] 合并验证通过（worktree/feat 模式）
+- [ ] fast-forward 预检通过
+- [ ] push 成功且远端一致
+- [ ] state.json phase=completed
+
+### 熔断条件
+
+自循环在以下任一条件满足时暂停并报告：
+- `current_loop >= max_loops`
+- 当前时间超过 `timeout_at`
+- 连续多次在同一对阶段间循环无进展
+- 遇到无法自愈的阻塞（安全边界、合并冲突、无法推断的根因等）
+
+### 报告模板
+
+#### 完成报告
+
+```
+✅ 自循环完成
+- 结束阶段: completed
+- 总循环: <current_loop>
+- 最终提交: <commit-hash>
+- 验证报告: devflow/<feature>/verification-log.md
+```
+
+#### 熔断/阻塞报告
+
+```
+⏸️ 自循环已暂停
+- 当前阶段: <phase>
+- 原因: <timeout | max_loops | unrecoverable-block>
+- 已尝试: <current_loop> 次
+- 建议: <action>
+```
+
 ---
 
 ## 阶段间确认规则
 
-| 从 → 到 | 必须满足的条件 |
-|---------|---------------|
-| clarify → breakdown | 用户明确回复"确认"/"Yes"/"Y"；feature 名称确认；会话初始化成功 |
-| breakdown → blueprint | 用户明确回复"确认"/"Yes"/"Y"；完整 R-xxx 清单已确认；所有待澄清项已解决 |
-| blueprint → implement | 用户明确回复"确认"/"Yes"/"Y"；完整设计方案 + TC 清单已确认 |
-| implement → verify | 用户明确回复"确认"/"Yes"/"Y"；完整 T-xxx 已完成 |
-| verify → completed | 自动化验证通过 + 用户明确回复"确认"/"Yes"/"Y"完成人工验收 + 合并验证通过 |
+| 从 → 到 | 人工模式必须满足的条件 | 自循环模式替代条件 |
+|---------|----------------------|-------------------|
+| clarify → breakdown | 用户明确回复"确认"/"Yes"/"Y"；feature 名称确认；会话初始化成功 | 用户输入 `auto` / `autonomous` / `自循环`，或此前已启用自循环；AI 自评 clarify checklist 通过 |
+| breakdown → blueprint | 用户明确回复"确认"/"Yes"/"Y"；完整 R-xxx 清单已确认；所有待澄清项已解决 | AI 自评 breakdown checklist 通过 |
+| blueprint → implement | 用户明确回复"确认"/"Yes"/"Y"；完整设计方案 + TC 清单已确认 | AI 自评 blueprint checklist 通过 |
+| implement → verify | 用户明确回复"确认"/"Yes"/"Y"；完整 T-xxx 已完成 | AI 自评 implement checklist 通过 |
+| verify → completed | 自动化验证通过 + 用户明确回复"确认"/"Yes"/"Y"完成人工验收 + 合并验证通过 | 自动化验证通过 + AI 自评 verify checklist 通过 + 合并验证通过 |
 
 ---
 
@@ -1375,7 +1561,20 @@ REMOTE=$(git rev-parse origin/<target-branch>)
     "verify": "pending"
   },
   "open_questions": [],
-  "rollback_history": []
+  "rollback_history": [],
+  "autonomous": {
+    "enabled": false,
+    "status": "idle",
+    "started_at": null,
+    "started_from": null,
+    "resume_phase": null,
+    "current_loop": 0,
+    "max_loops": 20,
+    "timeout_at": null,
+    "last_report_at": null,
+    "repair_cycles": {},
+    "rollback_history": []
+  }
 }
 ```
 
@@ -1384,6 +1583,17 @@ REMOTE=$(git rev-parse origin/<target-branch>)
 - `open_questions` 记录未澄清问题，进入下一阶段前必须清空或得到用户确认
 - `rollback_history` 记录回退历史，便于追踪
 - `isolation` 记录会话隔离元数据（v3.0 新增），Phase 6 按模式清理时读取
+- `autonomous` 记录自循环模式状态（v3.1 新增）
+  - `enabled`：是否启用自循环
+  - `status`：`idle` / `running` / `paused` / `failed` / `completed`
+  - `started_at` / `started_from`：启动时间与起始阶段
+  - `resume_phase`：恢复后继续的阶段
+  - `current_loop`：总循环计数
+  - `max_loops`：最大允许循环次数
+  - `timeout_at`：超时时间
+  - `last_report_at`：上次报告时间
+  - `repair_cycles`：记录 implement-verify 等修复循环次数
+  - `rollback_history`：自循环期间的回退历史
 - 恢复时读取 `phase`，跳转到对应阶段入口
 
 > `mode` 是路由 key，决定初始化、CWD 守卫和 Phase 6 收尾行为。旧 state.json 无 `mode` 字段时默认视为 `worktree`。
@@ -1394,12 +1604,15 @@ REMOTE=$(git rev-parse origin/<target-branch>)
 
 | 场景 | 处理 |
 |------|------|
-| 阶段执行报错 | 显示错误详情，不跳过阶段，询问是否重试 |
+| 阶段执行报错 | 显示错误详情，不跳过阶段，询问是否重试。自循环模式下重试并计数，达到限制则熔断。 |
 | 状态文件损坏 | 提示用户，从 clarify 重新开始或手动指定阶段 |
 | git 仓库不干净 | 提示用户先清理工作区再开始 |
-| 前置文档无法指导当前工作 | 主动提出回退到上游阶段重新确认 |
-| 实现中发现需求不可行 | 主动提出回退到 clarify/breakdown 重新确认 |
-| 用户未明确确认 | **不推进到下一阶段**，保持当前阶段等待确认或修改 |
+| 前置文档无法指导当前工作 | 主动提出回退到上游阶段重新确认。自循环模式下自动回退并记录原因。 |
+| 实现中发现需求不可行 | 主动提出回退到 clarify/breakdown 重新确认。自循环模式下自动回退。 |
+| 用户未明确确认 | **不推进到下一阶段**，保持当前阶段等待确认或修改（人工模式） |
+| 自循环达到 max_loops | 暂停自循环，输出熔断报告，等待用户决策 |
+| 自循环超时 | 暂停自循环，输出超时报告，等待用户决策 |
+| 自循环遇到无法自愈阻塞 | 暂停并报告用户，等待决策 |
 | 目标分支无 master/main | 报错并停止，提示用户创建目标分支 |
 | feature branch 或开发环境副本已存在 | 报错并提示用户更换 feature 名称 |
 | 合并验证发现冲突 | 停止流程，提示人工解决，不允许自动覆盖 |
