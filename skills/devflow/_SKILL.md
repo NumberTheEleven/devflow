@@ -41,6 +41,19 @@ Phase 6: 流程完成 → 合并验证 + 提交 + 按模式清理
 - 流程全部通过后：必须经用户人工验收，确认所有更改已提交，再标记完成
 - **绝对禁止 `git push --force`。** 任何阶段的任何操作都不允许强制推送。目标分支提交只能通过正常 merge 流程
 
+### 编号规范
+
+DevFlow 文档采用统一的纯十进制编号体系：
+
+- **阶段**：`Phase X`（如 Phase 1、Phase 2）
+- **步骤**：`X.Y`（如 1.1、1.2）
+- **子步骤**：`X.Y.Z`（如 1.5.1、1.5.2）
+
+禁止以下编号形式：
+
+- 字母后缀：`1.3a`、`1.4b`
+- 两位小数：`1.35`、`1.45`
+
 ---
 
 ## Step 0: 入口检测
@@ -168,11 +181,11 @@ v2.4 起不再提供 `/devflow list` 和 `/devflow cleanup` 管理命令。`/dev
 ```
 Phase 1.1-1.2: 需求澄清
     ↓ checkpoint（显式确认）
-Phase 1.35: 选择开发模式
+Phase 1.3: 选择开发模式
     ↓
-[Phase 1.3: 提炼 feature 名称]  （仅当 mode ≠ main-branch）
+[Phase 1.4: 提炼 feature 名称]  （仅当 mode ≠ main-branch）
     ↓
-Phase 1.4: 按模式初始化会话
+Phase 1.5: 按模式初始化会话
 ```
 
 **约束：** 不调用 Write/Edit，不产生任何文件改动
@@ -206,11 +219,11 @@ Phase 1.4: 按模式初始化会话
 >
 > 请确认以上内容是否准确、完整。回复 **"确认" / "Yes" / "Y"** 进入需求拆解；否则请指出需要修改的地方。"
 
-- **用户回复 "确认" / "Yes" / "Y"：** 进入 Phase 1.35（选择开发模式）
+- **用户回复 "确认" / "Yes" / "Y"：** 进入 Phase 1.3（选择开发模式）
 - **其他任何回复（包括"需要修改"、指出问题、部分肯定、沉默等）：** 一律视为需要修改。针对用户反馈修正后，**重新输出完整的需求总结**，再次等待确认
 - **不回复：** 自然暂停。下次 `/devflow` 时通过 Step 0 检测恢复。
 
-### 1.35 选择开发模式
+### 1.3 选择开发模式
 
 在需求澄清确认后、初始化会话前，展示模式选择：
 
@@ -221,8 +234,8 @@ Phase 1.4: 按模式初始化会话
 >
 > 回复数字或名称选择。
 
-- 用户选择 `worktree` 或 `feat-branch`：进入 Phase 1.3 提炼并确认 feature 名称
-- 用户选择 `main-branch`：跳过 Phase 1.3，feature 名称由 AI 内部推导，仅用于 `devflow/<feature>/` 目录跟踪，不经过用户确认
+- 用户选择 `worktree` 或 `feat-branch`：进入 Phase 1.4 提炼并确认 feature 名称
+- 用户选择 `main-branch`：跳过 Phase 1.4，feature 名称由 AI 内部推导，仅用于 `devflow/<feature>/` 目录跟踪，不经过用户确认
 
 选择 `main-branch` 时追加风险提示：
 
@@ -230,7 +243,7 @@ Phase 1.4: 按模式初始化会话
 >
 > 回复 **确认 / Yes / Y** 继续；否则返回模式选择。
 
-### 1.3 提炼 Feature 名称
+### 1.4 提炼 Feature 名称
 
 **仅当用户选择 `feat-branch` 或 `worktree` 模式时执行。** 若用户选择 `main-branch` 模式，则跳过本阶段，feature 名称由 AI 内部推导，仅用于 `devflow/<feature>/` 目录跟踪。
 
@@ -242,13 +255,13 @@ Phase 1.4: 按模式初始化会话
 
 向用户确认："基于需求，feature 名称建议为 `xxx`，可以吗？"
 
-- 用户确认后暂存 feature 名称，进入 Phase 1.4 初始化会话
+- 用户确认后暂存 feature 名称，进入 Phase 1.5 初始化会话
 
-### 1.4 初始化会话
+### 1.5 初始化会话
 
-Feature 名称确认且模式选择完成后，按所选模式初始化会话。三种模式共享前置步骤 1.4.1 和 1.4.2。1.4.3 为 feat/main 模式的工作区状态提示，worktree 模式跳过。之后进入各自的初始化路径：1.4.4（worktree）、1.4.5（feat）、1.4.6（main）。最终通过 `state.json` 中的 `isolation.mode` 记录所选模式。
+Feature 名称确认且模式选择完成后，按所选模式初始化会话。三种模式共享前置步骤 1.5.1 和 1.5.2。1.5.3 为 feat/main 模式的工作区状态提示，worktree 模式跳过。之后进入各自的初始化路径：1.5.4（worktree）、1.5.5（feat）、1.5.6（main）。最终通过 `state.json` 中的 `isolation.mode` 记录所选模式。
 
-#### 1.4.1 自动识别目标分支
+#### 1.5.1 自动识别目标分支
 
 检查 `master` 和 `main`，按以下优先级：
 
@@ -257,7 +270,7 @@ Feature 名称确认且模式选择完成后，按所选模式初始化会话。
 - 同时存在 → 默认使用 `main`
 - 都不存在 → 报错并停止
 
-#### 1.4.2 检查冲突
+#### 1.5.2 检查冲突
 
 - **worktree / feat 模式**：检查是否已存在同名 branch 或开发环境目录
   ```bash
@@ -269,7 +282,7 @@ Feature 名称确认且模式选择完成后，按所选模式初始化会话。
 
 - **main 模式**：Step 0 已检查未完成的 main 模式会话，此处不再重复
 
-#### 1.4.3 工作区状态提示（feat/main 模式专用）
+#### 1.5.3 工作区状态提示（feat/main 模式专用）
 
 因为 feat/main 模式直接修改主仓库工作区，初始化前检查：
 
@@ -285,7 +298,7 @@ git status --short
 
 worktree 模式不需要此检查。
 
-#### 1.4.4 worktree 模式初始化
+#### 1.5.4 worktree 模式初始化
 
 执行当前 v3.0 的初始化流程：
 
@@ -296,7 +309,7 @@ git worktree add .claude/worktrees/devflow-<feature> <feature>
 EnterWorktree path=".claude/worktrees/devflow-<feature>"
 ```
 
-然后按 1.4.7 补充运行时环境。
+然后按 1.5.7 补充运行时环境。
 
 `state.json` 的 `isolation`：
 
@@ -310,7 +323,7 @@ EnterWorktree path=".claude/worktrees/devflow-<feature>"
 }
 ```
 
-#### 1.4.5 feat 分支模式初始化
+#### 1.5.5 feat 分支模式初始化
 
 ```bash
 git checkout -b <feature> <target-branch>
@@ -329,7 +342,7 @@ git checkout -b <feature> <target-branch>
 }
 ```
 
-#### 1.4.6 main 分支模式初始化
+#### 1.5.6 main 分支模式初始化
 
 ```bash
 git checkout <target-branch>
@@ -348,7 +361,7 @@ git checkout <target-branch>
 }
 ```
 
-#### 1.4.7 补充运行时环境（策略菜单）
+#### 1.5.7 补充运行时环境（策略菜单）
 
 worktree 模式下不含 gitignored 的运行时文件，需按策略菜单补充。feat/main 模式下主仓库已有运行时环境，通常无需额外补充，但可按项目情况确认。
 
@@ -398,7 +411,7 @@ data/fixtures/
 
 这样后续创建 worktree 时 `node_modules` 自动 symlink，无需每次手动处理。
 
-#### 1.4.8 初始化状态目录和文件
+#### 1.5.8 初始化状态目录和文件
 
 在当前 `isolation.path` 指定的工作目录内创建 `devflow/<feature>/` 目录，写入 `state.json`：
 
@@ -430,11 +443,11 @@ data/fixtures/
 
 新增 `isolation` 字段记录会话隔离元数据，便于后续 CWD 守卫和 Phase 6 清理时定位。
 
-#### 1.4.9 提示用户
+#### 1.5.9 提示用户
 
 > "会话 `<feature>` 已准备就绪（模式：`<isolation.mode>`；路径：`<isolation.path>`；基于 `<target-branch>`）。已根据项目情况补充运行时环境（如适用）。可立即启动服务进行验收。后续所有文件操作将在当前工作目录内进行。"
 
-### 1.5 进入下一阶段
+### 1.6 进入下一阶段
 
 会话初始化后，自动进入 Phase 2（需求拆解）。
 
