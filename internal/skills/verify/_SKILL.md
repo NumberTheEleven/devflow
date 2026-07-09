@@ -327,7 +327,10 @@ L3 手工验证（Z 条）：TC-006, TC-007, TC-009, ...
 1. **导航到页面**：`browser_navigate` 到 `<baseURL><route>`
 2. **等待页面稳定**：等待 2-3 秒，让初始渲染完成（含字体、图片、CSS 动画的初步稳定）
 3. **执行程序化布局断言**：按本技能“程序化布局断言”章节的规则，检查可见元素重叠、元素超出可视区域、文字/内容被容器截断。
-4. **捕获截图**：调用 `browser_take_screenshot`（默认 `fullPage: true`），保存截图文件路径或 base64 作为证据。
+4. **捕获截图**：调用 `browser_take_screenshot`（默认 `fullPage: true`），保存截图文件路径作为证据。
+   - **保存路径规范：** `devflow/<feature>/screenshots/l1-<TC编号>-<page-name>-<timestamp>.png`
+   - **示例：** `devflow/<feature>/screenshots/l1-TC001-homepage-2026-07-09-123045.png`
+   - 调用时显式传入 `filename` 参数，不要保存到默认的根目录
 5. **AI 视觉分析**：将截图交给模型进行视觉审查，重点关注：
    - 是否有元素互相重叠或被遮挡
    - 弹窗、抽屉、下拉、toast 是否完整显示
@@ -380,8 +383,8 @@ L3 手工验证（Z 条）：TC-006, TC-007, TC-009, ...
 - / (homepage): PASS — 无视觉异常
 - /dashboard: FAIL — 发现 1 处 Major 视觉问题：
   - 问题：卡片标题 `.card-title` 被容器截断
-  - 截图：[dashboard-visual-smoke.png]
-  - 建议：/devflow:implement 修复卡片标题样式
+  - 截图：`devflow/<feature>/screenshots/l1-TC001-dashboard-2026-07-09-123045.png`
+  - 建议：回到 implement 阶段修复卡片标题样式
 
 **L1 摘要：** X/Y 页面烟雾扫描通过。发现 Z 个问题（C 条控制台错误，N 条网络失败，H 条健康警告，S 条快照缺失，V 条视觉问题）。
 
@@ -453,10 +456,14 @@ L3 手工验证（Z 条）：TC-006, TC-007, TC-009, ...
 
 对每条需要截图分析的 L2 TC，在每个关键动作执行前后增加视觉检查：
 
-1. **操作前截图**：使用 `browser_take_screenshot`（默认视口截图）捕获动作前的页面状态。
+1. **操作前截图**：使用 `browser_take_screenshot` 捕获动作前的页面状态。
+   - **保存路径规范：** `devflow/<feature>/screenshots/l2-<TC编号>-step<N>-before-<timestamp>.png`
+   - **示例：** `devflow/<feature>/screenshots/l2-TC003-step1-before-2026-07-09-123045.png`
 2. **执行动作**：按步骤 10 执行 Playwright 操作。
 3. **等待状态稳定**：等待 DOM 变化完成，异步内容加载完成（1-5 秒，视操作而定）。
 4. **操作后截图**：再次使用 `browser_take_screenshot` 捕获动作后的页面状态。若动作触发弹窗、抽屉、下拉等浮层，优先使用 `fullPage: true` 确保浮层完整可见。
+   - **保存路径规范：** `devflow/<feature>/screenshots/l2-<TC编号>-step<N>-after-<timestamp>.png`
+   - **示例：** `devflow/<feature>/screenshots/l2-TC003-step1-after-2026-07-09-123050.png`
 5. **AI 视觉分析**：将操作前后两张截图交给模型，重点判断：
    - 交互产生的新元素（弹窗、抽屉、下拉、toast）是否完整显示
    - 新元素是否被其他元素（导航栏、侧边栏、遮罩、fixed 元素）遮挡
@@ -653,9 +660,9 @@ L3 手工验证（Z 条）：TC-006, TC-007, TC-009, ...
    - 严重性：HIGH
    - 建议：/devflow:implement T-xxx
 2. **/page-y — Visual Smoke Scan：** [问题描述]
-   - 截图：[page-y-visual-smoke.png]
+   - 截图：`devflow/<feature>/screenshots/l1-TC002-page-y-2026-07-09-123045.png`
    - 严重性：Major
-   - 建议：/devflow:implement T-xxx
+   - 建议：回到 implement 阶段修复对应 T-xxx
 
 ---
 
@@ -665,8 +672,8 @@ L3 手工验证（Z 条）：TC-006, TC-007, TC-009, ...
 - Step 1: navigate → /login ✅ 页面加载成功
   - 操作前：[DOM摘要]
   - 操作后：[DOM摘要]
-  - 操作前截图：[before.png]
-  - 操作后截图：[after.png]
+  - 操作前截图：`devflow/<feature>/screenshots/l2-TC002-step1-before-2026-07-09-123045.png`
+  - 操作后截图：`devflow/<feature>/screenshots/l2-TC002-step1-after-2026-07-09-123050.png`
   - 视觉分析：✅ 无异常
 - Step 2: click "提交"（空表单）✅ 表单校验触发
   - DOM变化：+2 alert elements
@@ -683,8 +690,8 @@ L3 手工验证（Z 条）：TC-006, TC-007, TC-009, ...
 ### TC-005：[标题]
 - Step 1: navigate → /dashboard ✅
 - Step 2: click "打开弹窗" button ❌ 弹窗被导航栏遮挡
-  - 操作前截图：[before.png]
-  - 操作后截图：[after.png]
+  - 操作前截图：`devflow/<feature>/screenshots/l2-TC005-step2-before-2026-07-09-123045.png`
+  - 操作后截图：`devflow/<feature>/screenshots/l2-TC005-step2-after-2026-07-09-123050.png`
   - 视觉分析：❌ 弹窗上边缘被 fixed header 遮挡约 20px
   - **结果：** ❌ 失败 — 视觉异常
 

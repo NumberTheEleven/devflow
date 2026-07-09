@@ -191,7 +191,7 @@ Phase 1.5: 按模式初始化会话
 
 ### 1.1 流程
 
-遵循原 clarify skill 的核心逻辑：
+遵循原 clarify skill 的核心逻辑，并补充以下约束：
 
 1. **复述理解：** 用 1-2 句话复述用户的需求，确认理解是否正确
 2. **逐步探索：** 一次问一个问题，逐步深入。探索维度：
@@ -200,9 +200,16 @@ Phase 1.5: 按模式初始化会话
    - 成功标准：怎样算完成、算做得好？
    - 范围：做什么？明确不做什么？
    - 用户：最终用户是谁？使用场景？
+   - **现有代码与系统现状：** 通过代码搜索（`Glob`/`Grep`/`Read`/`Bash`）或 Playwright 截图自行查证。**严禁向用户提问现状类问题。**
 3. **提出方案：** 需求足够清晰后，提出 2-3 个方案，推荐一个
-4. **收敛确认：** 产出清晰的需求总结（目标、包含项、排除项、成功标准、约束）
+4. **收敛确认：** 产出清晰的需求总结（目标、包含项、排除项、成功标准、约束、已查证现状）
 5. **记录待澄清项：** 如果存在无法在 clarify 阶段说清的问题，明确记录为"待澄清项"，并在 Phase 2 中主动列出要求用户确认
+
+**现状查证截图路径：**
+- 如需在 clarify 阶段截取页面现状，统一保存到 `devflow/<feature>/screenshots/clarify/`
+- 文件名格式：`clarify-<page-name>-<YYYY-MM-DD>-<HHMMSS>.png`
+- 例如：`devflow/<feature>/screenshots/clarify/login-page-2026-07-09-123045.png`
+- 该目录属于生成的验证证据，应加入 `.gitignore`，不提交到 git
 
 ### 1.2 Checkpoint
 
@@ -412,7 +419,22 @@ data/fixtures/
 
 #### 1.5.8 初始化状态目录和文件
 
-在当前 `isolation.path` 指定的工作目录内创建 `devflow/<feature>/` 目录，写入 `state.json`：
+在当前 `isolation.path` 指定的工作目录内创建 `devflow/<feature>/` 目录，并同时创建 `devflow/<feature>/screenshots/` 子目录，用于统一存放 clarify 与 verify 阶段的 Playwright 截图证据：
+
+```bash
+mkdir -p devflow/<feature>/screenshots
+```
+
+**忽略截图目录：**
+- 检查仓库根目录 `.gitignore` 是否已包含 `devflow/*/screenshots/`
+- 如未包含，追加以下内容，避免将生成的截图证据提交到 git：
+
+```gitignore
+# DevFlow generated evidence
+devflow/*/screenshots/
+```
+
+写入 `state.json`：
 
 ```json
 {
@@ -753,17 +775,28 @@ if ($mode -eq "worktree") {
 ### 5.1 流程
 
 1. 加载所有跟踪文件（requirements.md, design.md, tasks.md, test-cases.md）
-2. **TC 智能路由：** 按关键字和类型将每条 TC 分发到 L1/L2/L3
-3. **L1 烟雾扫描：** Playwright 自动扫描所有路由（console error / network health / runtime health / DOM snapshot），检查页面基础设施是否正常
-4. **L2 交互验证：** 对交互类 TC 使用 Playwright 执行真实用户操作（点击、输入、提交），记录 Interaction Trace（操作前后 DOM diff），判断功能是否真的可用
-5. **L3 结构化手工验证：** 对无法自动化的 TC（权限、动画、视觉等），逐条收集证据，无证据不标记通过
-6. **深度评分：** 计算验证深度（真正执行过的 TC 占比）和证据覆盖率，暴露"走过场"验证
-7. 发现问题时：
+2. **确保截图目录存在：** 验证开始前，确认 `devflow/<feature>/screenshots/` 目录存在。如不存在，使用 `Bash` 创建（例如 `mkdir -p devflow/<feature>/screenshots`）
+3. **TC 智能路由：** 按关键字和类型将每条 TC 分发到 L1/L2/L3
+4. **L1 烟雾扫描：** Playwright 自动扫描所有路由（console error / network health / runtime health / DOM snapshot），检查页面基础设施是否正常
+5. **L2 交互验证：** 对交互类 TC 使用 Playwright 执行真实用户操作（点击、输入、提交），记录 Interaction Trace（操作前后 DOM diff），判断功能是否真的可用
+6. **L3 结构化手工验证：** 对无法自动化的 TC（权限、动画、视觉等），逐条收集证据，无证据不标记通过
+7. **深度评分：** 计算验证深度（真正执行过的 TC 占比）和证据覆盖率，暴露"走过场"验证
+8. 发现问题时：
    - L1 失败 → 基础设施问题，建议重新执行对应 T-xxx
    - L2 失败 → 功能 bug，建议重新执行对应 T-xxx
    - L3 失败 / 设计问题 → 建议回退到 Phase 3
    - 需求问题 → 建议回退到 Phase 1/2
-8. 生成统一验证报告（verification-log.md），包含三层结果 + 交互追踪 + 深度评分
+9. 生成统一验证报告（verification-log.md），包含三层结果 + 交互追踪 + 深度评分
+
+**Playwright 截图保存规范：**
+- 所有通过 `browser_take_screenshot` 捕获的截图，必须保存到 `devflow/<feature>/screenshots/`
+- L1 截图：`devflow/<feature>/screenshots/l1-<TC编号>-<page-name>-<timestamp>.png`
+- L2 截图：
+  - 操作前：`devflow/<feature>/screenshots/l2-<TC编号>-<step-N>-before-<timestamp>.png`
+  - 操作后：`devflow/<feature>/screenshots/l2-<TC编号>-<step-N>-after-<timestamp>.png`
+- L3 手工证据：如包含截图，也统一放入该目录
+- 截图目录属于生成的验证证据，应加入 `.gitignore`（例如 `devflow/*/screenshots/`），不提交到 git
+- 在 verification-log.md 中引用截图时，使用相对路径 `devflow/<feature>/screenshots/...`
 
 ### 5.2 验证结果
 

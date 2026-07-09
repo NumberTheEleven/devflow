@@ -64,6 +64,7 @@ allowed-tools: [Read, Glob, Grep, Bash, WebSearch, TaskCreate, browser_navigate,
    - 使用 Playwright 工具导航到相关页面并截图
    - 例如：`browser_navigate` → `browser_take_screenshot`
    - 对 UI/UX 现状问题优先使用截图，避免让用户描述界面
+   - **截图保存路径：** 统一保存到 `devflow/<feature>/screenshots/clarify/`，文件名如 `clarify-<page-name>-<YYYY-MM-DD>-<HHMMSS>.png`。在最终需求总结中引用该路径。
 
 3. **运行服务查看行为**
    - 如项目已启动，通过 Playwright 执行真实操作（点击、输入）观察当前行为
