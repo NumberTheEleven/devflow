@@ -512,7 +512,7 @@ if ($mode -eq "worktree") {
    - 每条待澄清项必须得到用户明确答复，回答后重新生成完整的需求拆解清单
 6. **识别新增不清晰项：** 拆解过程中，如果发现需求澄清中仍无法指导拆解的内容，主动提出并标记为新的待澄清项，要求用户确认
 7. 展示完整清单，请用户确认
-8. 确认后写入 `devflow/<feature>/requirements.md`（使用 `skills/breakdown/references/requirements-template.md` 格式）
+8. 确认后写入 `devflow/<feature>/requirements.md`（使用 `internal/skills/breakdown/references/requirements-template.md` 格式）
 
 ### 2.2 用户反馈与修正
 
@@ -1401,8 +1401,8 @@ REMOTE=$(git rev-parse origin/<target-branch>)
 
 ## 参考
 
-- 各阶段内部模板位于 `skills/*/references/` 目录
-- 原 6 个 skill 文件保留在 `skills/` 目录中供高级用户参考，但不再作为独立命令暴露
+- 各阶段内部模板位于 `internal/skills/*/references/` 目录
+- 原 6 个 skill 文件保留在 `internal/skills/` 目录中供参考，但不再作为独立命令暴露；唯一入口为 `/devflow`
 - Git 文档：`git help`
 
 ---

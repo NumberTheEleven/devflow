@@ -2,6 +2,7 @@
 name: discover
 description: 当没有特定需求时，扫描当前项目以寻找优化机会。发现性能、架构、可维护性或功能缺失方面的改进空间。
 argument-hint: [项目路径]
+allowed-tools: [Read, Glob, Grep, Bash, TaskCreate]
 ---
 
 # /devflow:discover — 项目发现
@@ -100,11 +101,11 @@ argument-hint: [项目路径]
 
 在展示报告后，请用户选择一个或多个项目来推进。然后建议：
 
-> "选择一个项目来开始。我建议从 P0 项目开始。选定后，我们将使用 /devflow:clarify 来展开需求。"
+> "选择一个项目来开始。我建议从 P0 项目开始。选定后，我们将使用 `/devflow` 来展开需求并继续后续流程。"
 
 ## 交接
 
 当用户选定某个项目时，建议：
-- `/devflow:clarify` — 将选定的优化项展开为清晰的需求
+- `/devflow` — 将选定的优化项展开为清晰的需求，并继续后续流程
 
 不要自动调用 clarify。等待用户确认。
