@@ -330,6 +330,20 @@ git worktree add .claude/worktrees/devflow-<feature> <feature>
 EnterWorktree path=".claude/worktrees/devflow-<feature>"
 ```
 
+进入 worktree 后，**创建 Claude Code 会话 junction**（确保 worktree 中的对话记录出现在主仓库的 `/resume` 列表中）：
+
+```bash
+# 确定主仓库路径和当前 worktree 路径
+MAIN_REPO=$(cd "$(git rev-parse --git-common-dir)/.." && pwd -P)
+WORKTREE=$(pwd -P)
+
+# 如果仓库中已包含此脚本则执行，否则跳过
+[ -f "$MAIN_REPO/scripts/devflow-session-junction.py" ] && \
+  python "$MAIN_REPO/scripts/devflow-session-junction.py" create "$MAIN_REPO" "$WORKTREE"
+```
+
+> **说明：** Claude Code 默认按工作目录路径将 worktree 视为独立项目，worktree 中的对话记录无法在主仓库的 `/resume` 中看到。此 junction 将 worktree 的 Claude Code 项目目录重定向到主仓库项目目录，使所有会话统一存储。脚本缺失时不影响开发流程。
+
 然后按 1.5.7 补充运行时环境。
 
 `state.json` 的 `isolation`：
@@ -1274,6 +1288,18 @@ REMOTE=$(git rev-parse origin/<target-branch>)
 #### 6.3.4 自动清理开发环境副本（worktree）
 
 提交成功后，自动删除 worktree。读取 `devflow/<feature>/state.json` 中 `isolation.path` 和 `isolation.branch`。
+
+**清理前先移除 Claude Code 会话 junction：**
+
+```bash
+# 确定主仓库路径和当前 worktree 路径
+MAIN_REPO=$(cd "$(git rev-parse --git-common-dir)/.." && pwd -P)
+WORKTREE=$(pwd -P)
+
+# 移除 session junction（如果存在）
+[ -f "$MAIN_REPO/scripts/devflow-session-junction.py" ] && \
+  python "$MAIN_REPO/scripts/devflow-session-junction.py" remove "$MAIN_REPO" "$WORKTREE"
+```
 
 **方案 A（优先，Claude Code 环境）：使用 ExitWorktree 原生工具**
 
