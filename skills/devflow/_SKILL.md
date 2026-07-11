@@ -331,61 +331,47 @@ git worktree add .claude/worktrees/devflow-<feature> <feature>
 EnterWorktree path=".claude/worktrees/devflow-<feature>"
 ```
 
-进入 worktree 后，**创建 Claude Code 会话 junction**（确保 worktree 中的对话记录出现在主仓库的 `/resume` 列表中）：
+进入 worktree 后，**将 `.claude/` 目录 junction 到主仓库**（确保 worktree 中的 Claude Code 对话记录统一存储在主仓库，`/resume` 双向可见）：
 
 ```bash
 MAIN_REPO=$(cd "$(git rev-parse --git-common-dir)/.." && pwd -P)
-WORKTREE=$(pwd -P)
 
-python3 - "$MAIN_REPO" "$WORKTREE" << 'PYEOF'
+python3 - "$MAIN_REPO" << 'PYEOF'
 import os, shutil, subprocess, sys
-
 main = sys.argv[1]
-wt = sys.argv[2]
-
-def sanitize(p):
-    return os.path.abspath(p).replace('\\', '-').replace(':', '')
-
-home = os.environ.get('USERPROFILE', os.path.expanduser('~'))
-proj = os.path.join(home, '.claude', 'projects')
-main_dir = os.path.join(proj, sanitize(main))
-wt_dir = os.path.join(proj, sanitize(wt))
-
-# Nothing to do if no sessions created in worktree yet
-if not os.path.exists(wt_dir):
-    print('[DevFlow] No worktree sessions yet — junction not needed')
-    sys.exit(0)
+claude_dir = os.path.join(os.getcwd(), '.claude')
+main_claude = os.path.join(main, '.claude')
 
 # Already a junction?
-try:
-    import ctypes
-    attrs = ctypes.windll.kernel32.GetFileAttributesW(str(wt_dir))
-    if attrs != -1 and (attrs & 0x0400):
-        print('[DevFlow] Session junction already exists')
-        sys.exit(0)
-except Exception:
-    pass  # not Windows or can't check — proceed
+if os.path.exists(claude_dir):
+    try:
+        import ctypes
+        attrs = ctypes.windll.kernel32.GetFileAttributesW(claude_dir)
+        if attrs != -1 and (attrs & 0x0400):
+            print('[DevFlow] .claude junction already exists')
+            sys.exit(0)
+    except Exception:
+        pass
+    # Real dir — migrate contents to main repo
+    os.makedirs(main_claude, exist_ok=True)
+    for item in os.listdir(claude_dir):
+        src = os.path.join(claude_dir, item)
+        dst = os.path.join(main_claude, item)
+        if not os.path.exists(dst):
+            shutil.move(src, dst)
+            print(f'[DevFlow] Migrated .claude/{item} -> main repo')
+        else:
+            print(f'[DevFlow] Skipped (exists): .claude/{item}')
+    shutil.rmtree(claude_dir)
 
-# Migrate existing sessions to main repo
-os.makedirs(main_dir, exist_ok=True)
-for item in os.listdir(wt_dir):
-    src = os.path.join(wt_dir, item)
-    dst = os.path.join(main_dir, item)
-    if not os.path.exists(dst):
-        shutil.move(str(src), str(dst))
-        print(f'[DevFlow] Migrated session: {item}')
-    else:
-        print(f'[DevFlow] Skipped (exists): {item}')
-
-# Remove old dir and create junction
-os.rmdir(str(wt_dir))
-subprocess.run(['cmd', '/c', 'mklink', '/J', str(wt_dir), str(main_dir)],
-               capture_output=True)
-print(f'[DevFlow] Session junction created: worktree sessions -> main repo')
+# Create junction: worktree/.claude -> main-repo/.claude
+os.makedirs(main_claude, exist_ok=True)
+subprocess.run(['cmd', '/c', 'mklink', '/J', claude_dir, main_claude], capture_output=True)
+print('[DevFlow] .claude junction created -> main repo')
 PYEOF
 ```
 
-> **说明：** Claude Code 默认按工作目录路径将 worktree 视为独立项目，worktree 中的对话记录（`/resume` 列表）无法在主仓库中看到。此 junction 将 worktree 的 `~/.claude/projects/<worktree>` 重定向到主仓库的 `~/.claude/projects/<main>`，使所有会话统一存储、双向可见。
+> **说明：** Claude Code 默认按工作目录路径将 worktree 视为独立项目，对话记录（`/resume` 列表）跟随 CWD 存储。此 junction 将 worktree 的 `.claude/` 重定向到主仓库的 `.claude/`，使所有对话记录统一存储、双向可见。`devflow/<feature>/` 跟踪文件保持普通目录，随 feature 分支提交。
 
 然后按 1.5.7 补充运行时环境。
 
@@ -1332,45 +1318,32 @@ REMOTE=$(git rev-parse origin/<target-branch>)
 
 提交成功后，自动删除 worktree。读取 `devflow/<feature>/state.json` 中 `isolation.path` 和 `isolation.branch`。
 
-**清理前先移除 Claude Code 会话 junction：**
+**清理前先移除 `.claude/` junction：**
 
 ```bash
-MAIN_REPO=$(cd "$(git rev-parse --git-common-dir)/.." && pwd -P)
-WORKTREE=$(pwd -P)
+python3 - << 'PYEOF'
+import os, subprocess
+claude_dir = os.path.join(os.getcwd(), '.claude')
 
-python3 - "$MAIN_REPO" "$WORKTREE" << 'PYEOF'
-import os, subprocess, sys
-
-main = sys.argv[1]
-wt = sys.argv[2]
-
-def sanitize(p):
-    return os.path.abspath(p).replace('\\', '-').replace(':', '')
-
-home = os.environ.get('USERPROFILE', os.path.expanduser('~'))
-proj = os.path.join(home, '.claude', 'projects')
-wt_dir = os.path.join(proj, sanitize(wt))
-
-if not os.path.exists(wt_dir):
-    print('[DevFlow] No session junction to remove')
+if not os.path.exists(claude_dir):
+    print('[DevFlow] No .claude to clean up')
     sys.exit(0)
 
-# Check if it's a junction (reparse point)
+# Check if it's a junction
 try:
     import ctypes
-    attrs = ctypes.windll.kernel32.GetFileAttributesW(str(wt_dir))
+    attrs = ctypes.windll.kernel32.GetFileAttributesW(claude_dir)
     if attrs != -1 and (attrs & 0x0400):
-        subprocess.run(['cmd', '/c', 'rmdir', str(wt_dir)], capture_output=True)
-        print('[DevFlow] Session junction removed')
+        subprocess.run(['cmd', '/c', 'rmdir', claude_dir], capture_output=True)
+        print('[DevFlow] .claude junction removed')
     else:
-        print('[DevFlow] Not a junction — skipping removal')
+        print('[DevFlow] .claude is not a junction — leaving in place')
 except Exception:
-    # Not Windows — try unlink for symlink
-    if os.path.islink(wt_dir):
-        os.unlink(str(wt_dir))
-        print('[DevFlow] Session symlink removed')
+    if os.path.islink(claude_dir):
+        os.unlink(claude_dir)
+        print('[DevFlow] .claude symlink removed')
     else:
-        print('[DevFlow] Not a symlink — skipping removal')
+        print('[DevFlow] .claude is not a symlink — leaving in place')
 PYEOF
 ```
 
