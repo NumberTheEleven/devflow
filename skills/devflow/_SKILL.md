@@ -112,7 +112,7 @@ $inV24Copy = ($PWD.Path -like '*/.claude/worktrees/devflow-*' -or $PWD.Path -lik
 
 注意：`IN_WORKTREE=true` 时 `IN_V24_COPY` 一定为 `false`（v3.0 worktree 目录名虽然形如 `.claude/worktrees/devflow-*`，但路径前缀检测仅作为兜底，主判定以 git 拓扑为准）。
 
-> 判定处于主仓库时，还需检查 0.4.1，防止多个 main 模式会话同时运行。
+> 判定处于主仓库时，还需检查 0.4.1，提示已有 main 模式会话的并发风险。
 
 ### 0.4 检测是否有活跃会话
 
@@ -140,12 +140,16 @@ done
 
 - **发现一个未完成的 feat/main 模式会话：** 询问用户是否恢复该会话
   - 若 `autonomous.enabled == true`，优先提示"自循环会话"，恢复后按自循环规则继续推进
-  - 用户确认恢复：读取 `devflow/<feature>/state.json`，跳转到 `phase` 对应阶段入口
-  - 用户拒绝恢复：继续检查旧版 `devflow/state.json`
+  - 用户确认恢复：
+    - **main 模式会话：** 进入 0.4.2 工作区管理流程，检查工作区状态和 stash
+    - 读取 `devflow/<feature>/state.json`，跳转到 `phase` 对应阶段入口
+  - 用户拒绝恢复：继续检查旧版 `devflow/state.json`（若为 main 模式会话，后续 0.4.1 会给出并发风险提示）
 
 - **发现多个未完成的 feat/main 模式会话：** 列出所有未完成会话，询问用户恢复哪一个
-  - 用户选择其中一个：读取对应 `state.json` 并跳转
-  - 用户拒绝恢复：继续检查旧版 `devflow/state.json`
+  - 用户选择其中一个：
+    - **main 模式会话：** 进入 0.4.2 工作区管理流程
+    - 读取对应 `state.json` 并跳转
+  - 用户拒绝恢复：继续检查旧版 `devflow/state.json`（若存在 main 模式会话，后续 0.4.1 会给出并发风险提示）
 
 - **未发现未完成的 feat/main 模式会话：** 继续检查旧版 `devflow/state.json`（见下方）。
 
@@ -159,12 +163,13 @@ done
   - 如果没有传入需求描述，询问用户要做什么
   - 如果传入了需求描述，进入 Phase 1（需求澄清）
 
-### 0.4.1 检查是否已有未完成的 main 模式会话
+### 0.4.1 检查是否已有未完成的 main 模式会话（并发风险提示）
 
-仅在判定处于主仓库时执行。遍历 `devflow/*/` 下所有 `state.json`：
+仅在判定处于主仓库时执行。遍历 `devflow/*/` 下所有 `state.json`，检查是否存在未完成的 main 模式会话：
 
 ```bash
 # 伪代码
+count=0
 for dir in devflow/*/; do
   state_file="$dir/state.json"
   [ -f "$state_file" ] || continue
@@ -172,14 +177,67 @@ for dir in devflow/*/; do
   phase=$(jq -r '.phase' "$state_file" 2>/dev/null)
   if [ "$mode" = "main-branch" ] && [ "$phase" != "completed" ]; then
     feature=$(basename "$dir")
-    echo "检测到未完成的 main 模式会话（feature: $feature，当前阶段：$phase）。同一时刻只能有一个 main 模式会话。"
-    exit 1
+    echo "  - $feature（阶段：$phase）"
+    count=$((count + 1))
   fi
 done
 ```
 
-- 存在未完成的 main 模式会话：报错并停止，提示用户完成或标记完成后开始新会话
-- 不存在：继续原有 0.4 逻辑
+- **不存在未完成的 main 模式会话：** 跳过，继续原有 0.4 逻辑
+- **存在未完成的 main 模式会话：** 输出风险提示，但不阻塞：
+
+> ⚠️ 检测到以下未完成的 main 分支会话：
+> - `<feature-1>`（阶段：`<phase>`）
+> - `<feature-2>`（阶段：`<phase>`）
+>
+> main 分支模式的所有会话共享同一个分支和工作目录，同时进行多个 main 模式会话存在以下风险：
+> - **工作区冲突**：多个会话可能同时修改相同文件，导致未提交变更相互覆盖
+> - **推送冲突**：一个会话完成并推送后，其他会话的 Phase 6 合并验证可能失败，需要重新同步
+> - **状态不一致**：`devflow/<feature>/` 跟踪文件与实际代码状态可能脱节
+>
+> 建议优先恢复已有会话，或使用 feat-branch / worktree 模式以获得更好的隔离性。
+>
+> 是否仍要开始新的 main 模式会话？回复 **确认 / Yes / Y** 继续；回复 **No** 返回模式选择或恢复已有会话。
+
+- 用户确认继续 → 进入 Phase 1
+- 用户拒绝 → 返回询问是否恢复已有会话或选择其他模式
+
+### 0.4.2 main 分支工作区管理（v3.3 新增）
+
+当新建或恢复 main 分支会话时，检查并管理工作区状态，防止多会话间的未提交变更相互干扰。
+
+**恢复已有会话时：**
+
+```bash
+# 1. 检查当前工作区状态
+git status --porcelain
+
+# 2. 读取该会话的 working_snapshot
+SNAPSHOT_DIRTY=$(jq -r '.working_snapshot.dirty // false' devflow/<feature>/state.json)
+STASH_REF=$(jq -r '.working_snapshot.stash_ref // empty' devflow/<feature>/state.json)
+SESSION_COMMITS=$(jq -r '.commits.session_commits | length // 0' devflow/<feature>/state.json)
+```
+
+根据检查结果处理：
+
+| 当前工作区 | 快照状态 | 处理方式 |
+|-----------|---------|---------|
+| 干净 | — | 直接继续。若 `STASH_REF` 存在，提示用户 `git stash pop` 恢复之前暂存的变更 |
+| 脏（有未提交变更） | `dirty: true`，变更与快照一致 | 这些变更是本会话的，直接继续 |
+| 脏（有未提交变更） | `dirty: false` 或变更与快照不一致 | 变更可能来自其他活跃会话。提示用户：|
+
+> 检测到工作区有未提交变更，与当前会话 `<feature>` 的初始快照不一致。这些变更可能来自其他活跃会话。
+> - **暂存 (stash)**：使用 `git stash push -m "devflow:<feature>"` 暂存这些变更
+> - **继续**：忽略警告，将这些变更纳入当前会话
+
+若用户选择 stash，更新对应会话的 `state.json` 中 `working_snapshot.stash_ref` 为当前 stash 的 SHA。
+
+**新建会话时：** 与 Phase 1.5.3 一致，检查工作区状态，有变更则提示但不阻塞。
+
+**会话切换（多个 main 会话间）：** 当用户在 Step 0.4 选择恢复另一个 main 会话，而当前工作区有未提交变更时：
+1. 检查变更是否属于当前活跃会话（对比 `commits.session_commits` 和 `working_snapshot`）
+2. 提示用户 stash 当前会话的变更，更新该会话的 `state.json`
+3. 切换到目标会话，检查目标会话是否有 stash，如有则 `git stash pop`
 
 ### 0.5 管理命令说明
 
@@ -261,7 +319,11 @@ Phase 1.5: 按模式初始化会话
 
 选择 `main-branch` 时追加风险提示：
 
-> 你选择了 main 分支开发模式。所有改动将直接提交到 `<target-branch>` 并推送到远端。该模式不适合需要代码审查或可能破坏主干的较大改动。是否确认继续？
+> 你选择了 main 分支开发模式。所有改动将直接提交到 `<target-branch>` 并推送到远端。该模式不适合需要代码审查或可能破坏主干的较大改动。
+>
+> 若当前存在其他未完成的 main 模式会话，请注意并发风险（共享分支和工作目录，详见 Step 0.4.1）。
+>
+> 是否确认继续？
 >
 > 回复 **确认 / Yes / Y** 继续；否则返回模式选择。
 
@@ -302,7 +364,7 @@ Feature 名称确认且模式选择完成后，按所选模式初始化会话。
   - 存在：报错 "feature 名称 `<feature>` 已存在（branch 或开发环境），请更换名称。"
   - 不存在：继续
 
-- **main 模式**：Step 0 已检查未完成的 main 模式会话，此处不再重复
+- **main 模式**：Step 0.4.1 已提示并发风险（不阻塞），此处不再重复。main 模式无需检查 branch 冲突（不创建新分支）。
 
 #### 1.5.3 工作区状态提示（feat/main 模式专用）
 
@@ -426,9 +488,47 @@ git checkout -b <feature> <target-branch>
 
 ```bash
 git checkout <target-branch>
+git fetch origin
 ```
 
 不创建分支，不创建 worktree。`feature` 名称仅用于 `devflow/<feature>/` 目录名。
+
+**记录基准 commit 和工作区快照（v3.3 新增）：**
+
+初始化完成后，记录以下信息用于并发会话管理和 Phase 6 安全推送：
+
+```bash
+# 记录远端基准 commit
+BASE_REF="origin/<target-branch>"
+BASE_COMMIT=$(git rev-parse "$BASE_REF")
+echo "base_ref=$BASE_REF base_commit=$BASE_COMMIT"
+
+# 记录工作区初始快照
+git status --porcelain
+```
+
+在 `state.json` 中填充：
+
+```json
+"commits": {
+  "base_ref": "origin/<target-branch>",
+  "base_commit": "<BASE_COMMIT>",
+  "session_commits": []
+},
+"working_snapshot": {
+  "dirty": false,
+  "modified": [],
+  "staged": [],
+  "untracked": [],
+  "stash_ref": null,
+  "recorded_at": "<ISO timestamp>"
+}
+```
+
+- `commits.base_ref` 和 `commits.base_commit`：记录会话初始时的远端状态，Phase 6.5 用它判断是否有其他会话在远端推送了新提交
+- `commits.session_commits`：Phase 4 中每次 commit 后追加，用于追溯本会话产生的提交
+- `working_snapshot`：记录初始化时的工作区状态，Step 0.4.2 恢复时用它检测外部变更
+- 如果工作区在初始化时是脏的（Phase 1.5.3 用户选择继续），`working_snapshot.dirty` 设为 `true` 并记录文件列表
 
 `state.json` 的 `isolation`：
 
@@ -545,12 +645,29 @@ devflow/*/screenshots/
     "last_report_at": null,
     "repair_cycles": {},
     "rollback_history": []
+  },
+  "commits": {
+    "base_ref": "<target-branch 的远端引用，如 origin/main>",
+    "base_commit": "<会话初始时 origin/<target-branch> 的 commit hash>",
+    "session_commits": []
+  },
+  "working_snapshot": {
+    "dirty": false,
+    "modified": [],
+    "staged": [],
+    "untracked": [],
+    "stash_ref": null,
+    "recorded_at": "<ISO timestamp>"
   }
 }
 ```
 
 新增 `isolation` 字段记录会话隔离元数据，便于后续 CWD 守卫和 Phase 6 清理时定位。
 `autonomous` 字段预留自循环状态。
+`commits` 字段（v3.3 新增）记录 main 分支会话的基准 commit 和会话内产生的 commit 列表，用于 Phase 6 并发推送检测和 rebase 范围计算。
+`working_snapshot` 字段（v3.3 新增）记录会话初始化时的工作区状态快照，用于恢复时检测外部变更和 stash 管理。
+
+> **向后兼容：** 旧 state.json 缺少 `commits` 或 `working_snapshot` 字段时，Phase 6.5 回退到原有的 `--ff-only` 硬停止行为，并提示用户重新初始化会话以启用并发支持。
 
 **自循环初始化：**
 - 若用户在 Phase 1.2 输入 `auto` / `autonomous` / `自循环`，初始化时设置 `autonomous.enabled = true`，`autonomous.status = "running"`，`autonomous.started_at` 为当前时间，`autonomous.started_from = "clarify"`，`autonomous.timeout_at = 当前时间 + 4 小时`
@@ -800,6 +917,16 @@ if ($mode -eq "worktree") {
    - 若 `autonomous.enabled == true`，所有 T-xxx 完成后，AI 使用 implement checklist 自评
    - 自评通过后自动进入 Phase 5，不等待用户确认
    - 自评不通过时，自动修正并重新自评
+7. **main 分支提交追踪（v3.3 新增）：**
+   - 仅当 `isolation.mode == "main-branch"` 时执行
+   - 每个 sub-agent 完成 commit 后，获取最新 commit hash 并追加到 `state.json` 的 `commits.session_commits` 数组：
+     ```bash
+     # 获取最新 commit hash
+     LATEST_COMMIT=$(git rev-parse HEAD)
+     # 追加到 state.json（使用 jq）
+     jq --arg c "$LATEST_COMMIT" '.commits.session_commits += [$c]' devflow/<feature>/state.json > tmp && mv tmp devflow/<feature>/state.json
+     ```
+   - 这些记录用于 Phase 6.5 判断本会话产生了哪些提交、确定 rebase 范围
 
 ### 4.2 实现中回退机制
 
@@ -1468,37 +1595,126 @@ REMOTE=$(git rev-parse origin/<target-branch>)
 
 ### 6.5 main 分支模式收尾
 
+main 模式不创建 feature 分支，所有提交直接在 `<target-branch>` 上。当多个 main 会话并发时，Phase 6.2 的预完成提交可能产生本地分叉。v3.3 起，Phase 6.5 支持并发安全的推送流程。
+
+#### 6.5.1 分析本地与远端关系
+
 ```bash
-# 1. 切到 target，安全同步远端
+# Step 1: 确认在 target 分支，拉取最新远端
 git checkout <target-branch>
 git fetch origin
-git merge --ff-only origin/<target-branch>   # 失败则硬停止
 
-# 2. 推送前 fast-forward 预检
-git merge-base --is-ancestor origin/<target-branch> HEAD && echo "OK" || echo "REJECT"
-# OK：继续下一步
-# REJECT：硬停止。本地 target 不是远端的 fast-forward 后代，禁止推送。
+# Step 2: 读取会话基准信息
+BASE_COMMIT=$(jq -r '.commits.base_commit // empty' devflow/<feature>/state.json)
+BASE_REF=$(jq -r '.commits.base_ref // "origin/<target-branch>"' devflow/<feature>/state.json)
 
-# 3. 推送
+# Step 3: 分析本地与远端的关系
+LOCAL_AHEAD=$(git rev-list $BASE_REF..HEAD --count 2>/dev/null || echo 0)
+REMOTE_AHEAD=$(git rev-list HEAD..$BASE_REF --count 2>/dev/null || echo 0)
+```
+
+#### 6.5.2 按场景处理
+
+根据 `LOCAL_AHEAD` 和 `REMOTE_AHEAD` 的值：
+
+| 场景 | LOCAL_AHEAD | REMOTE_AHEAD | 含义 | 处理 |
+|------|-------------|--------------|------|------|
+| A | 0 | >0 | 本地落后于远端（仅其他会话推送了） | `git merge --ff-only $BASE_REF` |
+| B | >0 | 0 | 本地领先于远端（只有本会话有提交） | 正常推送 |
+| C | >0 | >0 | 本地和远端分叉（**并发会话场景**） | 进入 6.5.3 rebase 流程 |
+| D | 0 | 0 | 本地与远端一致（无可推送内容） | 跳过推送，直接标记完成 |
+
+**向后兼容：** 如果 `BASE_COMMIT` 为空（旧会话未记录基准），回退到原 `--ff-only` 硬停止行为：
+
+```bash
+git merge --ff-only $BASE_REF   # 失败则硬停止，提示用户重新初始化会话
+```
+
+#### 6.5.3 并发场景：rebase 本地提交
+
+当本地和远端分叉时（场景 C），远端有其他会话的提交，本地有本会话的提交。需要将本地提交 rebase 到远端最新提交之上：
+
+```bash
+# Step C1: 确认 session_commits 中的提交全部是本地的（未被推送过）
+# 如果 session_commits 为空（旧会话），以 base_commit 为界：
+#   git rebase --onto $BASE_REF $BASE_COMMIT
+# 如果 session_commits 不为空，rebase 从 base_commit 之后到 HEAD 的所有提交：
+git rebase --onto $BASE_REF $BASE_COMMIT
+```
+
+> ⚠️ `git rebase --onto` 只移动本地未推送的提交，不改写远端历史。
+> 这符合 DevFlow 的禁止 force push 原则——force push 只在改写远端历史时发生，rebase 本地提交是安全的。
+
+**rebase 成功：** 进入 6.5.4 重验证。
+
+**rebase 冲突：**
+
+> ⚠️ 检测到合并冲突。可能原因：其他会话修改了与本会话相同的文件。
+>
+> 冲突文件：
+> - `<conflict-file-1>`
+> - `<conflict-file-2>`
+>
+> 请手动解决冲突后执行：
+> ```bash
+> git add <resolved-files>
+> git rebase --continue
+> ```
+> **不要使用 `git rebase --abort`**（会丢失本会话的提交进度）。
+>
+> 解决后回复 **确认 / Yes / Y** 继续。
+
+#### 6.5.4 重验证（rebase 后）
+
+rebase 成功后，运行快速烟雾测试验证 rebase 没有引入回归：
+
+- 如果项目有自动化测试：运行项目测试套件
+- 如果有 Playwright 测试：扫描关键路由，检查 console error / network health
+- 快速通过即继续；失败则报告并暂停，等待用户决策
+
+#### 6.5.5 推送
+
+```bash
+# 推送前 fast-forward 预检
+git merge-base --is-ancestor $BASE_REF HEAD && echo "OK" || echo "REJECT"
+# REJECT → 不应发生（6.5.3 已保证），但仍做安全检查
+
+# 推送
 git push origin <target-branch>
+```
 
-# 推送后验证
+**推送被拒时（远端在分析-推送之间又有新提交）：**
+
+- 人工模式：自动回到 6.5.1 重新执行（最多 3 次重试）
+- 自循环模式：自动回到 6.5.1 重新执行，重试计数计入 `autonomous.current_loop`
+
+#### 6.5.6 推送后验证
+
+```bash
 LOCAL=$(git rev-parse HEAD)
-REMOTE=$(git rev-parse origin/<target-branch>)
+REMOTE=$(git rev-parse $BASE_REF)
 [ "$LOCAL" = "$REMOTE" ] && echo "✅ 推送成功" || echo "⚠️ 远端与本地不一致"
 ```
 
 注意：
 
 - main 模式不执行 catch-up merge（已在 target 上）
-- 仍需执行 `git merge --ff-only origin/<target-branch>` 安全检查
-- 推送前同样做 fast-forward 预检
+- v3.3 起，并发场景使用 `git rebase --onto` 替代 `--ff-only` 硬停止
+- 旧会话（无 `commits.base_commit`）回退到原 `--ff-only` 硬停止行为
 
 ### 6.6 清理总结
 
 - **worktree 模式**：`ExitWorktree remove` + 删除 feature 分支
 - **feat 模式**：无 worktree 清理，保留 feature 分支
-- **main 模式**：无 worktree 清理，无分支删除
+- **main 模式**：无 worktree 清理，无分支删除。如该会话有 stash，清理之：
+
+```bash
+# 清理该会话的 stash（如果存在）
+STASH_REF=$(jq -r '.working_snapshot.stash_ref // empty' devflow/<feature>/state.json)
+if [ -n "$STASH_REF" ]; then
+  git stash drop "$STASH_REF" 2>/dev/null || true
+fi
+```
 
 所有模式最后更新 `state.json`：`phase: "completed"`。
 
@@ -1582,8 +1798,11 @@ REMOTE=$(git rev-parse origin/<target-branch>)
 #### Completed
 - [ ] 工作区干净或已提交
 - [ ] 合并验证通过（worktree/feat 模式）
+- [ ] main 模式：rebase 成功（如进入 6.5.3 流程）
+- [ ] main 模式：rebase 后重验证通过（如适用）
 - [ ] fast-forward 预检通过
 - [ ] push 成功且远端一致
+- [ ] main 模式：stash 已清理（如适用）
 - [ ] state.json phase=completed
 
 ### 熔断条件
@@ -1711,9 +1930,11 @@ REMOTE=$(git rev-parse origin/<target-branch>)
 | 目标分支无 master/main | 报错并停止，提示用户创建目标分支 |
 | feature branch 或开发环境副本已存在 | 报错并提示用户更换 feature 名称 |
 | 合并验证发现冲突 | 停止流程，提示人工解决，不允许自动覆盖 |
-| 本地与远端分叉（--ff-only 失败） | **硬停止**，提示用户手动检查 `git log --oneline --graph` 确认分叉原因 |
+| 本地与远端分叉（--ff-only 失败） | worktree/feat 模式：**硬停止**，提示用户手动检查。main 模式（v3.3+）：自动进入 6.5.3 rebase 流程。旧 main 会话（无 `commits.base_commit`）：**硬停止**并提示重新初始化。 |
+| main 模式 rebase 冲突（6.5.3） | 列出冲突文件，提示用户手动解决。不允许 `git rebase --abort`。解决后回复确认继续。 |
+| main 模式并发推送重试耗尽 | **硬停止**。报告检测到远端频繁更新（>3 次重试失败），请稍后手动完成 Phase 6.5。 |
 | 推送前安全预检失败 | **硬停止**，本地不是远端的 fast-forward 后代，禁止推送 |
-| git push 被远端拒绝 | **硬停止**，worktree 模式从 6.3.3.1 重新执行；feat 模式从 6.4 第 1 步重新执行；main 模式从 6.5 第 1 步重新执行 |
+| git push 被远端拒绝 | **硬停止**，worktree 模式从 6.3.3.1 重新执行；feat 模式从 6.4 第 1 步重新执行；main 模式从 6.5.1 重新执行（含 3 次重试） |
 | 远端验证不一致 | 提示用户检查 `git log origin/<target-branch>` |
 | git push --force | **绝对禁止。** 任何情况下不允许使用 |
 | worktree 清理失败 | 给出明确提示，由用户手动处理 |
