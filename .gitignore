@@ -6,3 +6,5 @@
 
 # DevFlow parallel session coordination
 devflow/.global-registry.json
+.git/devflow-lock
+.devflow-verify-lock

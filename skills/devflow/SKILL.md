@@ -1,6 +1,6 @@
 ---
 name: devflow
-description: DevFlow v3.5 — AI 开发规范流程，单一入口，按阶段推进完整开发流程。支持 git worktree / feat 分支 / main 分支三种开发模式，支持多 main 分支会话并行开发（全局文件冲突检测 + 端口隔离 + 精确提交），强制合并验证。
+description: DevFlow v3.6 — AI 开发规范流程，单一入口，按阶段推进完整开发流程。支持 git worktree / feat 分支 / main 分支三种开发模式，main 分支多会话协调式并行（Phase 1-4 独立并行 + Phase 5-6 全局串行排队 + git/verify/push lock）。
 argument-hint: [模糊需求描述]
 ---
 
@@ -654,7 +654,7 @@ devflow/*/screenshots/
 
 新增 `isolation` 字段记录会话隔离元数据，便于后续 CWD 守卫和 Phase 6 清理时定位。
 `autonomous` 字段预留自循环状态。
-`commits` 字段（v3.3 新增）记录 main 分支会话的基准 commit 和会话内产生的 commit 列表，用于 Phase 6 并发推送检测和 rebase 范围计算。`commits.session_files`（v3.5 新增）记录本会话声明修改的文件列表，用于并行会话文件冲突检测和 Phase 6.2 精确提交。v3.4+ 不执行任何 `git stash` 操作——在共享 main 分支上，未提交变更归创建它的会话所有，其他会话不对其进行任何移动、暂存或清理。`port`（v3.5 新增）为 Phase 5 verify 分配的独立端口。
+`commits` 字段（v3.3 新增）记录 main 分支会话的基准 commit 和会话内产生的 commit 列表。`commits.session_files`（v3.5 新增）记录本会话声明修改的文件列表，用于文件冲突检测和 Phase 6.2 精确提交。`port`（v3.5 新增）为 Phase 5 verify 分配的独立端口。v3.6 使用 `.claude/hooks/devflow-locks.sh` 中的 git lock / verify lock 保护 Phase 4-6 的并发操作，使用 global-registry 的 push_queue 串行化推送。v3.4+ 不执行任何 `git stash` 操作——在共享 main 分支上，未提交变更归创建它的会话所有，其他会话不对其进行任何移动、暂存或清理。
 
 > **向后兼容：** 旧 state.json 缺少 `commits` 字段时，Phase 6.5 回退到原有的 `--ff-only` 硬停止行为。
 
@@ -958,13 +958,20 @@ if ($mode -eq "worktree") {
    - 若 `autonomous.enabled == true`，所有 T-xxx 完成后，AI 使用 implement checklist 自评
    - 自评通过后自动进入 Phase 5，不等待用户确认
    - 自评不通过时，自动修正并重新自评
-7. **main 分支精确提交（v3.3 新增，v3.5 增强）：**
+7. **main 分支精确提交（v3.3 新增，v3.6 增强）：**
    - 仅当 `isolation.mode == "main-branch"` 时执行
    - **精确 add：** 每个 sub-agent commit 时只 add 该任务声明的涉及文件，不使用 `git add -A` / `git add -u` / `git add .`：
      ```bash
      # 只 add 本会话声明范围内的文件
      git add src/auth.ts src/utils/session.ts  # 从 tasks.md T-xxx 的"涉及文件"列获取
+     ```
+   - **git lock 保护（v3.6 新增）：** commit 前获取 git lock，防止并行会话的 git 操作互相损坏：
+     ```bash
+     source .claude/hooks/devflow-locks.sh
+     acquire_git_lock "<feature>"
+     git add src/auth.ts src/utils/session.ts
      git commit -m "feat: T-001 add session helper"
+     release_git_lock
      ```
    - **提交追踪：** commit 后记录 hash 到 `state.json` 的 `commits.session_commits`
      ```bash
@@ -1073,23 +1080,39 @@ if ($mode -eq "worktree") {
    - 读取 `state.json` 中的 `port` 字段
    - 启动 dev server 时使用该端口：`npm run dev -- --port <port>`（或项目的等效命令）
    - 确保 Playwright 测试连接 `http://localhost:<port>` 而非默认端口
-4. **TC 智能路由：** 按关键字和类型将每条 TC 分发到 L1/L2/L3
-4. **L1 烟雾扫描：** Playwright 自动扫描所有路由（console error / network health / runtime health / DOM snapshot），检查页面基础设施是否正常
-5. **L2 交互验证：** 对交互类 TC 使用 Playwright 执行真实用户操作（点击、输入、提交），记录 Interaction Trace（操作前后 DOM diff），判断功能是否真的可用
-6. **L3 结构化手工验证：** 对无法自动化的 TC（权限、动画、视觉等），逐条收集证据，无证据不标记通过
-7. **深度评分：** 计算验证深度（真正执行过的 TC 占比）和证据覆盖率，暴露"走过场"验证
-8. 发现问题时：
+4. **verify lock（v3.6 新增）：**
+   - main 模式下，运行任何 Playwright 验证前获取 verify lock：
+     ```bash
+     source .claude/hooks/devflow-locks.sh
+     acquire_verify_lock "<feature>"
+     ```
+   - 如果其他会话正在验证，等待其完成（最多 15 分钟）
+   - 验证全部完成后释放：`release_verify_lock`
+   - 确保同时只有一个会话在跑 Playwright，避免共享运行时互相干扰
+6. **TC 智能路由：** 按关键字和类型将每条 TC 分发到 L1/L2/L3
+7. **L1 烟雾扫描：** Playwright 自动扫描所有路由（console error / network health / runtime health / DOM snapshot），检查页面基础设施是否正常
+8. **L2 交互验证：** 对交互类 TC 使用 Playwright 执行真实用户操作（点击、输入、提交），记录 Interaction Trace（操作前后 DOM diff），判断功能是否真的可用
+9. **L3 结构化手工验证：** 对无法自动化的 TC（权限、动画、视觉等），逐条收集证据，无证据不标记通过
+10. **深度评分：** 计算验证深度（真正执行过的 TC 占比）和证据覆盖率，暴露"走过场"验证
+11. 发现问题时：
    - L1 失败 → 基础设施问题，建议重新执行对应 T-xxx
    - L2 失败 → 功能 bug，建议重新执行对应 T-xxx
    - L3 失败 / 设计问题 → 建议回退到 Phase 3
    - 需求问题 → 建议回退到 Phase 1/2
-9. **自循环修复循环（autonomous.enabled == true）：**
+12. **自循环修复循环（autonomous.enabled == true）：**
    - 验证失败时，AI 首先判断失败根因阶段
    - 根因在 implement：自动返回 Phase 4 修复，`repair_cycles["implement-verify"]` 递增
    - 根因在 blueprint/breakdown/clarify：自动回退到对应阶段，`rollback_history` 记录原因
    - 修复/回退完成后重新推进到 verify
    - 每次循环前检查 `max_loops` 与 `timeout_at`，超限则熔断暂停
-10. 生成统一验证报告（verification-log.md），包含三层结果 + 交互追踪 + 深度评分
+13. 生成统一验证报告（verification-log.md），包含三层结果 + 交互追踪 + 深度评分
+14. **释放 verify lock（v3.6 新增）：**
+    - 所有验证完成（通过或失败）后，释放 verify lock：
+      ```bash
+      source .claude/hooks/devflow-locks.sh
+      release_verify_lock
+      ```
+    - 释放后，等待中的其他会话可以开始验证
 
 **Playwright 截图保存规范：**
 - 所有通过 `browser_take_screenshot` 捕获的截图，必须保存到 `devflow/<feature>/screenshots/`
@@ -1741,18 +1764,42 @@ rebase 成功后，运行快速烟雾测试验证 rebase 没有引入回归：
 - 如果有 Playwright 测试：扫描关键路由，检查 console error / network health
 - 快速通过即继续；失败则报告并暂停，等待用户决策
 
-#### 6.5.5 推送
+#### 6.5.5 推送排队（v3.6 新增）
+
+main 模式下推送必须排队，确保同一时间只有一个会话推送，避免级联 rebase 冲突。
 
 ```bash
-# 推送前 fast-forward 预检
-git merge-base --is-ancestor $BASE_REF HEAD && echo "OK" || echo "REJECT"
-# REJECT → 不应发生（6.5.3 已保证），但仍做安全检查
+# 1. 加入 push queue
+REGISTRY=".global-registry.json"
+jq ".push_queue += [\"$FEATURE\"]" "$REGISTRY" > tmp && mv tmp "$REGISTRY"
 
-# 推送
+# 2. 等待轮到自己（同时更新 registry heartbeat）
+while [ "$(jq -r '.push_queue[0]' "$REGISTRY")" != "$FEATURE" ]; do
+  echo "⏳ 推送队列中，前面还有: $(jq -r '.push_queue[1:-1] | join(", ")' "$REGISTRY")"
+  sleep 10
+  # 更新 heartbeat 防止被僵死检测误判
+  jq --arg f "$FEATURE" --arg t "$(date -u +%Y-%m-%dT%H:%M:%S+08:00)" '.sessions[$f].last_heartbeat = $t' "$REGISTRY" > tmp && mv tmp "$REGISTRY"
+done
+
+# 3. 获取 git lock（确保 rebase/push 期间无并发 git 操作）
+source .claude/hooks/devflow-locks.sh
+acquire_git_lock "$FEATURE"
+
+# 4. 推送前 fast-forward 预检（在 git lock 保护下）
+git merge-base --is-ancestor $BASE_REF HEAD && echo "OK" || echo "REJECT"
+# REJECT → 重新 fetch + rebase（在 git lock 保护下）
+
+# 5. 推送
 git push origin <target-branch>
+
+# 6. 释放 git lock
+release_git_lock
+
+# 7. 出队
+jq ".push_queue = .push_queue[1:]" "$REGISTRY" > tmp && mv tmp "$REGISTRY"
 ```
 
-**推送被拒时（远端在分析-推送之间又有新提交）：**
+**推送被拒时（远端在排队期间有新提交）：**
 
 - 人工模式：自动回到 6.5.1 重新执行（最多 3 次重试）
 - 自循环模式：自动回到 6.5.1 重新执行，重试计数计入 `autonomous.current_loop`
@@ -2037,4 +2084,4 @@ fi
 
 ---
 
-*DevFlow v3.5 — 单一入口，多模式会话隔离（worktree / feat / main），main 分支多会话并行协调（文件冲突检测 / 精确提交 / 端口隔离），策略菜单补充运行时，合并验证，闭环管理。*
+*DevFlow v3.6 — 单一入口，多模式会话隔离（worktree / feat / main），main 分支协调式并行（Phase 1-4 独立并行 / Phase 5-6 全局串行排队 / git+verify+push lock），策略菜单补充运行时，合并验证，闭环管理。*
