@@ -141,13 +141,13 @@ done
 - **发现一个未完成的 feat/main 模式会话：** 询问用户是否恢复该会话
   - 若 `autonomous.enabled == true`，优先提示"自循环会话"，恢复后按自循环规则继续推进
   - 用户确认恢复：
-    - **main 模式会话：** 进入 0.4.2 工作区管理流程，检查工作区状态和 stash
+    - **main 模式会话：** 进入 0.4.2 stash 管理，检查本会话 stash 并 pop
     - 读取 `devflow/<feature>/state.json`，跳转到 `phase` 对应阶段入口
   - 用户拒绝恢复：继续检查旧版 `devflow/state.json`（若为 main 模式会话，后续 0.4.1 会给出并发风险提示）
 
 - **发现多个未完成的 feat/main 模式会话：** 列出所有未完成会话，询问用户恢复哪一个
   - 用户选择其中一个：
-    - **main 模式会话：** 进入 0.4.2 工作区管理流程
+    - **main 模式会话：** 进入 0.4.2 stash 管理
     - 读取对应 `state.json` 并跳转
   - 用户拒绝恢复：继续检查旧版 `devflow/state.json`（若存在 main 模式会话，后续 0.4.1 会给出并发风险提示）
 
@@ -202,42 +202,29 @@ done
 - 用户确认继续 → 进入 Phase 1
 - 用户拒绝 → 返回询问是否恢复已有会话或选择其他模式
 
-### 0.4.2 main 分支工作区管理（v3.3 新增）
+### 0.4.2 main 分支 stash 管理（v3.4 简化）
 
-当新建或恢复 main 分支会话时，检查并管理工作区状态，防止多会话间的未提交变更相互干扰。
+main 分支模式下，多个会话共享工作目录。v3.4 采用极简策略：**不检查、不提示、不操作工作区的未提交变更**——那些变更属于其他并行会话，与本会话无关。
 
-**恢复已有会话时：**
+stash 管理仅用于**会话切换**场景，防止切换时丢失本会话的未提交进度：
 
 ```bash
-# 1. 检查当前工作区状态
-git status --porcelain
-
-# 2. 读取该会话的 working_snapshot
-SNAPSHOT_DIRTY=$(jq -r '.working_snapshot.dirty // false' devflow/<feature>/state.json)
-STASH_REF=$(jq -r '.working_snapshot.stash_ref // empty' devflow/<feature>/state.json)
-SESSION_COMMITS=$(jq -r '.commits.session_commits | length // 0' devflow/<feature>/state.json)
+# 读取本会话的 stash_ref
+STASH_REF=$(jq -r '.stash_ref // empty' devflow/<current-feature>/state.json)
 ```
 
-根据检查结果处理：
+**恢复会话时：**
+- `stash_ref` 非空 → 执行 `git stash pop`，清空 `stash_ref`
+- `stash_ref` 为空 → 什么都不做，直接进入
 
-| 当前工作区 | 快照状态 | 处理方式 |
-|-----------|---------|---------|
-| 干净 | — | 直接继续。若 `STASH_REF` 存在，提示用户 `git stash pop` 恢复之前暂存的变更 |
-| 脏（有未提交变更） | `dirty: true`，变更与快照一致 | 这些变更是本会话的，直接继续 |
-| 脏（有未提交变更） | `dirty: false` 或变更与快照不一致 | 变更可能来自其他活跃会话。提示用户：|
+**会话切换时（从 Session A 切到 Session B）：**
+1. 如果 A 的 `stash_ref` 为空 且工作区有未提交变更：
+   - `git stash push -m "devflow:<feature-A>"`
+   - 获取 stash SHA，写入 A 的 `state.json` 的 `stash_ref`
+2. 如果 A 的 `stash_ref` 非空：已在 stash 中，无需操作
+3. 切换到 B，执行恢复逻辑（pop B 的 stash）
 
-> 检测到工作区有未提交变更，与当前会话 `<feature>` 的初始快照不一致。这些变更可能来自其他活跃会话。
-> - **暂存 (stash)**：使用 `git stash push -m "devflow:<feature>"` 暂存这些变更
-> - **继续**：忽略警告，将这些变更纳入当前会话
-
-若用户选择 stash，更新对应会话的 `state.json` 中 `working_snapshot.stash_ref` 为当前 stash 的 SHA。
-
-**新建会话时：** 与 Phase 1.5.3 一致，检查工作区状态，有变更则提示但不阻塞。
-
-**会话切换（多个 main 会话间）：** 当用户在 Step 0.4 选择恢复另一个 main 会话，而当前工作区有未提交变更时：
-1. 检查变更是否属于当前活跃会话（对比 `commits.session_commits` 和 `working_snapshot`）
-2. 提示用户 stash 当前会话的变更，更新该会话的 `state.json`
-3. 切换到目标会话，检查目标会话是否有 stash，如有则 `git stash pop`
+**新建 main 会话时：** 不检查、不提示、不操作工作区。直接进入 Phase 1。
 
 ### 0.5 管理命令说明
 
@@ -343,7 +330,7 @@ Phase 1.5: 按模式初始化会话
 
 ### 1.5 初始化会话
 
-Feature 名称确认且模式选择完成后，按所选模式初始化会话。三种模式共享前置步骤 1.5.1 和 1.5.2。1.5.3 为 feat/main 模式的工作区状态提示，worktree 模式跳过。之后进入各自的初始化路径：1.5.4（worktree）、1.5.5（feat）、1.5.6（main）。最终通过 `state.json` 中的 `isolation.mode` 记录所选模式。
+Feature 名称确认且模式选择完成后，按所选模式初始化会话。三种模式共享前置步骤 1.5.1 和 1.5.2。1.5.3 为 feat 模式的工作区状态提示（worktree 和 main 模式跳过）。之后进入各自的初始化路径：1.5.4（worktree）、1.5.5（feat）、1.5.6（main）。最终通过 `state.json` 中的 `isolation.mode` 记录所选模式。
 
 #### 1.5.1 自动识别目标分支
 
@@ -366,9 +353,9 @@ Feature 名称确认且模式选择完成后，按所选模式初始化会话。
 
 - **main 模式**：Step 0.4.1 已提示并发风险（不阻塞），此处不再重复。main 模式无需检查 branch 冲突（不创建新分支）。
 
-#### 1.5.3 工作区状态提示（feat/main 模式专用）
+#### 1.5.3 工作区状态提示（仅 feat 模式）
 
-因为 feat/main 模式直接修改主仓库工作区，初始化前检查：
+因为 feat 模式直接修改主仓库工作区，初始化前检查：
 
 ```bash
 git status --short
@@ -380,7 +367,7 @@ git status --short
   > - 回复 **继续**：开始本次会话
   > - 回复 **清理**：请先 stash / commit / 丢弃变更后再开始"
 
-worktree 模式不需要此检查。
+**main 模式跳过此检查。** main 模式的工作区未提交变更属于其他并行会话，本会话不对其进行任何操作或确认。worktree 模式不需要此检查。
 
 #### 1.5.4 worktree 模式初始化
 
@@ -493,19 +480,18 @@ git fetch origin
 
 不创建分支，不创建 worktree。`feature` 名称仅用于 `devflow/<feature>/` 目录名。
 
-**记录基准 commit 和工作区快照（v3.3 新增）：**
+**记录基准 commit（v3.3 新增，v3.4 简化）：**
 
-初始化完成后，记录以下信息用于并发会话管理和 Phase 6 安全推送：
+初始化完成后，记录远端基准信息用于 Phase 6 安全推送：
 
 ```bash
 # 记录远端基准 commit
 BASE_REF="origin/<target-branch>"
 BASE_COMMIT=$(git rev-parse "$BASE_REF")
 echo "base_ref=$BASE_REF base_commit=$BASE_COMMIT"
-
-# 记录工作区初始快照
-git status --porcelain
 ```
+
+> v3.4 不再记录工作区快照。工作区的未提交变更属于其他并行会话，本会话不对其进行任何检查或操作。
 
 在 `state.json` 中填充：
 
@@ -515,20 +501,12 @@ git status --porcelain
   "base_commit": "<BASE_COMMIT>",
   "session_commits": []
 },
-"working_snapshot": {
-  "dirty": false,
-  "modified": [],
-  "staged": [],
-  "untracked": [],
-  "stash_ref": null,
-  "recorded_at": "<ISO timestamp>"
-}
+"stash_ref": null
 ```
 
 - `commits.base_ref` 和 `commits.base_commit`：记录会话初始时的远端状态，Phase 6.5 用它判断是否有其他会话在远端推送了新提交
 - `commits.session_commits`：Phase 4 中每次 commit 后追加，用于追溯本会话产生的提交
-- `working_snapshot`：记录初始化时的工作区状态，Step 0.4.2 恢复时用它检测外部变更
-- 如果工作区在初始化时是脏的（Phase 1.5.3 用户选择继续），`working_snapshot.dirty` 设为 `true` 并记录文件列表
+- `stash_ref`：会话切换时用于暂存本会话的未提交变更，恢复时 pop 回来
 
 `state.json` 的 `isolation`：
 
@@ -651,23 +629,16 @@ devflow/*/screenshots/
     "base_commit": "<会话初始时 origin/<target-branch> 的 commit hash>",
     "session_commits": []
   },
-  "working_snapshot": {
-    "dirty": false,
-    "modified": [],
-    "staged": [],
-    "untracked": [],
-    "stash_ref": null,
-    "recorded_at": "<ISO timestamp>"
-  }
+  "stash_ref": null
 }
 ```
 
 新增 `isolation` 字段记录会话隔离元数据，便于后续 CWD 守卫和 Phase 6 清理时定位。
 `autonomous` 字段预留自循环状态。
 `commits` 字段（v3.3 新增）记录 main 分支会话的基准 commit 和会话内产生的 commit 列表，用于 Phase 6 并发推送检测和 rebase 范围计算。
-`working_snapshot` 字段（v3.3 新增）记录会话初始化时的工作区状态快照，用于恢复时检测外部变更和 stash 管理。
+`stash_ref` 字段（v3.4 新增，替代 v3.3 的 `working_snapshot`）记录会话切换时暂存的 stash SHA，恢复时 pop 回来。v3.4 不再检查工作区脏状态——未提交变更属于其他并行会话，本会话不对其进行任何操作。
 
-> **向后兼容：** 旧 state.json 缺少 `commits` 或 `working_snapshot` 字段时，Phase 6.5 回退到原有的 `--ff-only` 硬停止行为，并提示用户重新初始化会话以启用并发支持。
+> **向后兼容：** 旧 state.json 缺少 `commits` 字段时，Phase 6.5 回退到原有的 `--ff-only` 硬停止行为。旧 `working_snapshot.stash_ref` 仍可被读取（如有），但 v3.4 不再产生 `working_snapshot` 对象。
 
 **自循环初始化：**
 - 若用户在 Phase 1.2 输入 `auto` / `autonomous` / `自循环`，初始化时设置 `autonomous.enabled = true`，`autonomous.status = "running"`，`autonomous.started_at` 为当前时间，`autonomous.started_from = "clarify"`，`autonomous.timeout_at = 当前时间 + 4 小时`
@@ -1710,7 +1681,7 @@ REMOTE=$(git rev-parse $BASE_REF)
 
 ```bash
 # 清理该会话的 stash（如果存在）
-STASH_REF=$(jq -r '.working_snapshot.stash_ref // empty' devflow/<feature>/state.json)
+STASH_REF=$(jq -r '.stash_ref // empty' devflow/<feature>/state.json)
 if [ -n "$STASH_REF" ]; then
   git stash drop "$STASH_REF" 2>/dev/null || true
 fi
