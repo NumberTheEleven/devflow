@@ -1,6 +1,6 @@
 ---
 name: devflow
-description: DevFlow v3.0 — AI 开发规范流程，单一入口，按阶段推进完整开发流程。支持 git worktree / feat 分支 / main 分支三种开发模式，强制合并验证，防止多 feature 并行开发时的冲突与语义回归。
+description: DevFlow v3.5 — AI 开发规范流程，单一入口，按阶段推进完整开发流程。支持 git worktree / feat 分支 / main 分支三种开发模式，支持多 main 分支会话并行开发（全局文件冲突检测 + 端口隔离 + 精确提交），强制合并验证。
 argument-hint: [模糊需求描述]
 ---
 
@@ -197,11 +197,56 @@ done
 - 用户确认继续 → 进入 Phase 1
 - 用户拒绝 → 返回询问是否恢复已有会话或选择其他模式
 
-### 0.5 管理命令说明
+### 0.5 main 分支并行会话协调（v3.5 新增）
+
+#### 0.5.1 global-registry 管理
+
+`devflow/.global-registry.json` 是并行 main 会话的本地协调文件（已加入 .gitignore，不提交到 git）。
+
+```json
+{
+  "version": 1,
+  "target_branch": "master",
+  "sessions": {
+    "<feature-name>": {
+      "phase": "implement",
+      "files": ["src/auth.ts"],
+      "port": 3001,
+      "registered_at": "2026-07-16T10:00:00+08:00",
+      "last_heartbeat": "2026-07-16T10:30:00+08:00"
+    }
+  }
+}
+```
+
+**操作时机：**
+
+| 时机 | 操作 |
+|------|------|
+| Phase 3 确认后（main 模式） | 注册本会话：files + port + heartbeat |
+| Phase 4 每次 commit | 更新 heartbeat（`last_heartbeat` → 当前时间） |
+| Phase 5 verify | 更新 heartbeat |
+| Phase 6 完成后 | 移除本会话条目 |
+| Step 0 恢复会话 | 更新 heartbeat |
+
+**格式说明：**
+- `files`：本会话声明修改的文件列表（从 design.md 提取）
+- `port`：Phase 5 dev server 端口（从 3001 递增分配）
+- `heartbeat`：ISO 时间戳，用于僵死检测
+
+#### 0.5.2 僵死会话检测
+
+Step 0 扫描活跃 main 会话时，同时检查 global-registry 中的 heartbeat：
+- 如果某会话的 `last_heartbeat` 距今超过 2 小时 → 提示：
+  > "⚠️ 检测到 `<feature>` 会话可能已僵死（最后更新：`<time>`）。是否从 registry 清理？清理后将释放端口 `<port>`。"
+- 用户确认后，从 registry 移除该条目
+
+#### 0.5.3 管理命令说明
 
 v2.4 起不再提供 `/devflow list` 和 `/devflow cleanup` 管理命令。`/devflow` 保持唯一入口。
 
 - 如需查看会话，直接查看 `devflow/<feature>/` 目录或 `.claude/worktrees/` 目录
+- 如需查看并行会话协调状态，查看 `devflow/.global-registry.json`
 - 如需清理开发环境副本，使用 `git worktree remove .claude/worktrees/devflow-<feature>`（v3.0）或直接删除目录（v2.4 遗留）
 
 ---
@@ -470,12 +515,16 @@ echo "base_ref=$BASE_REF base_commit=$BASE_COMMIT"
 "commits": {
   "base_ref": "origin/<target-branch>",
   "base_commit": "<BASE_COMMIT>",
-  "session_commits": []
-}
+  "session_commits": [],
+  "session_files": []
+},
+"port": null
 ```
 
 - `commits.base_ref` 和 `commits.base_commit`：记录会话初始时的远端状态，Phase 6.5 用它判断是否有其他会话在远端推送了新提交
 - `commits.session_commits`：Phase 4 中每次 commit 后追加，用于追溯本会话产生的提交
+- `commits.session_files`（v3.5 新增）：本会话声明修改的文件列表（从 Phase 3 design.md 提取），用于 Phase 6.2 精确提交和并行会话文件冲突检测
+- `port`（v3.5 新增）：本会话在 Phase 5 verify 时绑定的 dev 端口，避免与并行会话冲突
 
 `state.json` 的 `isolation`：
 
@@ -596,14 +645,16 @@ devflow/*/screenshots/
   "commits": {
     "base_ref": "<target-branch 的远端引用，如 origin/main>",
     "base_commit": "<会话初始时 origin/<target-branch> 的 commit hash>",
-    "session_commits": []
-  }
+    "session_commits": [],
+    "session_files": []
+  },
+  "port": null
 }
 ```
 
 新增 `isolation` 字段记录会话隔离元数据，便于后续 CWD 守卫和 Phase 6 清理时定位。
 `autonomous` 字段预留自循环状态。
-`commits` 字段（v3.3 新增）记录 main 分支会话的基准 commit 和会话内产生的 commit 列表，用于 Phase 6 并发推送检测和 rebase 范围计算。v3.4 不执行任何 `git stash` 操作——在共享 main 分支上，未提交变更归创建它的会话所有，其他会话不对其进行任何移动、暂存或清理。
+`commits` 字段（v3.3 新增）记录 main 分支会话的基准 commit 和会话内产生的 commit 列表，用于 Phase 6 并发推送检测和 rebase 范围计算。`commits.session_files`（v3.5 新增）记录本会话声明修改的文件列表，用于并行会话文件冲突检测和 Phase 6.2 精确提交。v3.4+ 不执行任何 `git stash` 操作——在共享 main 分支上，未提交变更归创建它的会话所有，其他会话不对其进行任何移动、暂存或清理。`port`（v3.5 新增）为 Phase 5 verify 分配的独立端口。
 
 > **向后兼容：** 旧 state.json 缺少 `commits` 字段时，Phase 6.5 回退到原有的 `--ff-only` 硬停止行为。
 
@@ -766,7 +817,57 @@ if ($mode -eq "worktree") {
 4. **前置文档可指导性检查：**
    - 在编写设计规格和测试用例前，主动检查 `requirements.md` 是否足以指导设计
    - 如果发现存在 R-xxx 无法转化为具体设计或测试用例，**主动提出回退到 Phase 1 或 Phase 2 重新确认**
-5. 写入 `devflow/<feature>/design.md` 和 `devflow/<feature>/test-cases.md`
+5. **涉及文件声明（v3.5 新增，main 模式专属）：**
+   - `design.md` 中必须包含"涉及文件"章节，列出所有计划新增/修改/删除的文件路径
+   - 将文件列表写入 `state.json` 的 `commits.session_files` 数组
+   - 读取 `devflow/.global-registry.json`，检查其他活跃会话是否已声明相同文件
+   - 如果存在文件冲突 → 弹出版本冲突警告（见 3.1.1）
+   - 如果无冲突 → 向 global-registry 注册本会话（files + port + heartbeat）
+6. 写入 `devflow/<feature>/design.md` 和 `devflow/<feature>/test-cases.md`
+
+#### 3.1.1 main 模式文件冲突检测（v3.5 新增）
+
+仅当 `isolation.mode == "main-branch"` 且 `devflow/.global-registry.json` 中存在其他活跃 main 会话时执行。
+
+```bash
+# 读取 global-registry
+REGISTRY=$(cat devflow/.global-registry.json 2>/dev/null || echo '{}')
+# 检查每个已注册会话的 files 与本会话声明的是否有重叠
+```
+
+**无冲突：** 注册本会话，继续。
+
+**有冲突：**
+
+> ⚠️ 检测到与以下并行会话的文件冲突：
+> - `<other-feature>`（阶段：`<phase>`）已声明修改：`<file-path>`
+>
+> 并行修改同一文件可能导致 Phase 6 rebase 冲突。
+>
+> 建议处理方式：
+> 1. **等待** — 等 `<other-feature>` 推送后再继续
+> 2. **协调** — 与 `<other-feature>` 协调分工，各改各的
+> 3. **接受** — 理解风险，rebase 时手动解决冲突
+>
+> 回复 1/2/3 选择。
+
+#### 3.1.2 端口分配（v3.5 新增，main 模式专属）
+
+为并行 main 会话分配独立的 dev server 端口，避免 Phase 5 verify 时端口冲突：
+
+```bash
+# 从 global-registry 查找已用端口，从 3001 开始递增分配第一个空闲端口
+BASE_PORT=3001
+REGISTRY=$(cat devflow/.global-registry.json 2>/dev/null || echo '{}' )
+USED_PORTS=$(echo "$REGISTRY" | jq -r '[.sessions[].port // empty] | .[]')
+PORT=$BASE_PORT
+while echo "$USED_PORTS" | grep -q "^$PORT$"; do
+  PORT=$((PORT + 1))
+done
+echo "分配端口: $PORT"
+```
+
+将 `port` 写入 global-registry 和 state.json。Phase 5 运行 dev server 时使用此端口。
 
 ### 3.2 用户反馈与修正
 
@@ -783,10 +884,12 @@ if ($mode -eq "worktree") {
 >
 > 请确认以上方案蓝图是否准确、完整。回复 **确认 / Yes / Y** 进入编码实现；回复 **`auto` / `autonomous` / `自循环`** 进入编码实现并由 AI 自动推进后续阶段；否则请指出需要修改的地方。"
 
-- **用户回复 "确认" / "Yes" / "Y"：** 进入 Phase 4
-- **用户回复 `auto` / `autonomous` / `自循环`：** 进入 Phase 4 并切换为自循环模式
+- **用户回复 "确认" / "Yes" / "Y"：**
+  - main 模式：执行 3.1.1 冲突检测 → 无冲突 → 向 global-registry 注册 → 进入 Phase 4
+  - 其他模式：直接进入 Phase 4
+- **用户回复 `auto` / `autonomous` / `自循环`：** 进入 Phase 4 并切换为自循环模式（main 模式同样执行注册流程）
 - **其他任何回复：** 视为需要修改。修正后重新输出完整方案蓝图，再次等待确认
-- **不回复：** 自然暂停。更新 `state.json` 的 `phase` 为 `"implement"`。  
+- **不回复：** 自然暂停。更新 `state.json` 的 `phase` 为 `"implement"`。
 - **自循环模式下：** AI 使用 blueprint checklist 自评，通过后自动进入 Phase 4。
 
 ---
@@ -855,16 +958,21 @@ if ($mode -eq "worktree") {
    - 若 `autonomous.enabled == true`，所有 T-xxx 完成后，AI 使用 implement checklist 自评
    - 自评通过后自动进入 Phase 5，不等待用户确认
    - 自评不通过时，自动修正并重新自评
-7. **main 分支提交追踪（v3.3 新增）：**
+7. **main 分支精确提交（v3.3 新增，v3.5 增强）：**
    - 仅当 `isolation.mode == "main-branch"` 时执行
-   - 每个 sub-agent 完成 commit 后，获取最新 commit hash 并追加到 `state.json` 的 `commits.session_commits` 数组：
+   - **精确 add：** 每个 sub-agent commit 时只 add 该任务声明的涉及文件，不使用 `git add -A` / `git add -u` / `git add .`：
      ```bash
-     # 获取最新 commit hash
+     # 只 add 本会话声明范围内的文件
+     git add src/auth.ts src/utils/session.ts  # 从 tasks.md T-xxx 的"涉及文件"列获取
+     git commit -m "feat: T-001 add session helper"
+     ```
+   - **提交追踪：** commit 后记录 hash 到 `state.json` 的 `commits.session_commits`
+     ```bash
      LATEST_COMMIT=$(git rev-parse HEAD)
-     # 追加到 state.json（使用 jq）
      jq --arg c "$LATEST_COMMIT" '.commits.session_commits += [$c]' devflow/<feature>/state.json > tmp && mv tmp devflow/<feature>/state.json
      ```
-   - 这些记录用于 Phase 6.5 判断本会话产生了哪些提交、确定 rebase 范围
+   - **文件追踪：** 将实际涉及的文件追加到 `commits.session_files`（去重）
+   - **registry 心跳：** 更新 `devflow/.global-registry.json` 中本会话的 `last_heartbeat`
 
 ### 4.2 实现中回退机制
 
@@ -960,7 +1068,12 @@ if ($mode -eq "worktree") {
 
 1. 加载所有跟踪文件（requirements.md, design.md, tasks.md, test-cases.md）
 2. **确保截图目录存在：** 验证开始前，确认 `devflow/<feature>/screenshots/` 目录存在。如不存在，使用 `Bash` 创建（例如 `mkdir -p devflow/<feature>/screenshots`）
-3. **TC 智能路由：** 按关键字和类型将每条 TC 分发到 L1/L2/L3
+3. **main 模式端口隔离（v3.5 新增）：**
+   - 仅当 `isolation.mode == "main-branch"` 时执行
+   - 读取 `state.json` 中的 `port` 字段
+   - 启动 dev server 时使用该端口：`npm run dev -- --port <port>`（或项目的等效命令）
+   - 确保 Playwright 测试连接 `http://localhost:<port>` 而非默认端口
+4. **TC 智能路由：** 按关键字和类型将每条 TC 分发到 L1/L2/L3
 4. **L1 烟雾扫描：** Playwright 自动扫描所有路由（console error / network health / runtime health / DOM snapshot），检查页面基础设施是否正常
 5. **L2 交互验证：** 对交互类 TC 使用 Playwright 执行真实用户操作（点击、输入、提交），记录 Interaction Trace（操作前后 DOM diff），判断功能是否真的可用
 6. **L3 结构化手工验证：** 对无法自动化的 TC（权限、动画、视觉等），逐条收集证据，无证据不标记通过
@@ -1146,14 +1259,24 @@ Phase 6 的收尾逻辑按 `isolation.mode` 分为三条路径：
    - 不强制。输出警告："⚠️ 未提交文件将在会话结束后丢失，已确认跳过。"
    - 更新状态文件记录此决策。
 
-   **main 模式特殊处理（v3.4）：**
+   **main 模式特殊处理（v3.4+, v3.5 增强）：**
 
-   main 模式的工作区未提交变更可能属于其他并行会话，本会话只提交自己产生的变更。由于 Phase 4 中每个 T-xxx 任务已经完成 commit，到达 Phase 6.2 时本会话的代码通常已全部提交。Phase 6.2 在 main 模式下仅处理本会话生成的 untracked 文件：
+   main 模式的工作区未提交变更可能属于其他并行会话，本会话只提交自己产生的变更。Phase 6.2 在 main 模式下仅 commit `commits.session_files` 范围内的文件和 `devflow/<feature>/` 跟踪文件：
 
-   - 对比 `git status --porcelain` 与 `commits.session_commits` 涉及的文件
-   - 仅 commit 与本会话相关的变更（`commits.session_commits` 中记录的 commit 所修改的文件，以及 `devflow/<feature>/` 跟踪文件）
+   ```bash
+   # 读取本会话的涉及文件
+   SESSION_FILES=$(jq -r '.commits.session_files[]' devflow/<feature>/state.json 2>/dev/null)
+   # 精确 add
+   for f in $SESSION_FILES; do
+     git add "$f" 2>/dev/null || true
+   done
+   git add "devflow/<feature>/" 2>/dev/null || true
+   # 检查是否有需要提交的变更
+   git diff --cached --quiet || git commit -m "chore: pre-completion commit for <feature>"
+   ```
+
    - **不执行** `git add -u` 或 `git add -A`（会包含其他会话的未提交变更）
-   - 如果检测到与本会话无关的未提交变更，跳过并提示："检测到其他会话的未提交变更，本会话不对其进行操作"
+   - 如果存在本会话文件范围外的未提交变更，跳过并提示："检测到其他会话的未提交变更，已跳过"
    - 如果 `devflow/<feature>/` 跟踪文件有未提交的，精确 add 这些文件后 commit
 
 3. **提交后二次确认：**
@@ -1652,7 +1775,14 @@ REMOTE=$(git rev-parse $BASE_REF)
 
 - **worktree 模式**：`ExitWorktree remove` + 删除 feature 分支
 - **feat 模式**：无 worktree 清理，保留 feature 分支
-- **main 模式**：无 worktree 清理，无分支删除，无 stash 操作
+- **main 模式**：无 worktree 清理，无分支删除，无 stash 操作。从 `devflow/.global-registry.json` 移除本会话条目，释放端口。
+
+```bash
+# main 模式完成后从 registry 移除
+if [ -f devflow/.global-registry.json ]; then
+  jq "del(.sessions[\"<feature>\"])" devflow/.global-registry.json > tmp && mv tmp devflow/.global-registry.json
+fi
+```
 
 所有模式最后更新 `state.json`：`phase: "completed"`。
 
@@ -1907,4 +2037,4 @@ REMOTE=$(git rev-parse $BASE_REF)
 
 ---
 
-*DevFlow v3.0 — 单一入口，多模式会话隔离（worktree / feat / main），策略菜单补充运行时，合并验证，闭环管理。*
+*DevFlow v3.5 — 单一入口，多模式会话隔离（worktree / feat / main），main 分支多会话并行协调（文件冲突检测 / 精确提交 / 端口隔离），策略菜单补充运行时，合并验证，闭环管理。*

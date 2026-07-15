@@ -45,6 +45,20 @@ flowchart TD
 |------|------|---------|
 | ... | ... | ... |
 
+## 涉及文件
+
+> 此章节为 v3.5 新增，main 分支模式下用于并行会话间的文件冲突检测。
+
+### 新增文件
+- `path/to/new-file.ts`
+
+### 修改文件
+- `path/to/existing-file.ts`
+- `path/to/another-file.tsx`
+
+### 删除文件
+- `path/to/deprecated-file.ts`
+
 ---
 
 *由 DevFlow 追踪。请勿手动编辑。*

@@ -3,3 +3,6 @@
 !.claude/settings.json
 !.claude/hooks/
 .claude/settings.local.json
+
+# DevFlow parallel session coordination
+devflow/.global-registry.json
