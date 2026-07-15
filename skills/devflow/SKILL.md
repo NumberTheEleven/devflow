@@ -139,15 +139,11 @@ done
 
 - **发现一个未完成的 feat/main 模式会话：** 询问用户是否恢复该会话
   - 若 `autonomous.enabled == true`，优先提示"自循环会话"，恢复后按自循环规则继续推进
-  - 用户确认恢复：
-    - **main 模式会话：** 进入 0.4.2 stash 管理，检查本会话 stash 并 pop
-    - 读取 `devflow/<feature>/state.json`，跳转到 `phase` 对应阶段入口
+  - 用户确认恢复：读取 `devflow/<feature>/state.json`，跳转到 `phase` 对应阶段入口
   - 用户拒绝恢复：继续检查旧版 `devflow/state.json`（若为 main 模式会话，后续 0.4.1 会给出并发风险提示）
 
 - **发现多个未完成的 feat/main 模式会话：** 列出所有未完成会话，询问用户恢复哪一个
-  - 用户选择其中一个：
-    - **main 模式会话：** 进入 0.4.2 stash 管理
-    - 读取对应 `state.json` 并跳转
+  - 用户选择其中一个：读取对应 `state.json` 并跳转
   - 用户拒绝恢复：继续检查旧版 `devflow/state.json`（若存在 main 模式会话，后续 0.4.1 会给出并发风险提示）
 
 - **未发现未完成的 feat/main 模式会话：** 继续检查旧版 `devflow/state.json`（见下方）。
@@ -200,30 +196,6 @@ done
 
 - 用户确认继续 → 进入 Phase 1
 - 用户拒绝 → 返回询问是否恢复已有会话或选择其他模式
-
-### 0.4.2 main 分支 stash 管理（v3.4 简化）
-
-main 分支模式下，多个会话共享工作目录。v3.4 采用极简策略：**不检查、不提示、不操作工作区的未提交变更**——那些变更属于其他并行会话，与本会话无关。
-
-stash 管理仅用于**会话切换**场景，防止切换时丢失本会话的未提交进度：
-
-```bash
-# 读取本会话的 stash_ref
-STASH_REF=$(jq -r '.stash_ref // empty' devflow/<current-feature>/state.json)
-```
-
-**恢复会话时：**
-- `stash_ref` 非空 → 执行 `git stash pop`，清空 `stash_ref`
-- `stash_ref` 为空 → 什么都不做，直接进入
-
-**会话切换时（从 Session A 切到 Session B）：**
-1. 如果 A 的 `stash_ref` 为空 且工作区有未提交变更：
-   - `git stash push -m "devflow:<feature-A>"`
-   - 获取 stash SHA，写入 A 的 `state.json` 的 `stash_ref`
-2. 如果 A 的 `stash_ref` 非空：已在 stash 中，无需操作
-3. 切换到 B，执行恢复逻辑（pop B 的 stash）
-
-**新建 main 会话时：** 不检查、不提示、不操作工作区。直接进入 Phase 1。
 
 ### 0.5 管理命令说明
 
@@ -499,13 +471,11 @@ echo "base_ref=$BASE_REF base_commit=$BASE_COMMIT"
   "base_ref": "origin/<target-branch>",
   "base_commit": "<BASE_COMMIT>",
   "session_commits": []
-},
-"stash_ref": null
+}
 ```
 
 - `commits.base_ref` 和 `commits.base_commit`：记录会话初始时的远端状态，Phase 6.5 用它判断是否有其他会话在远端推送了新提交
 - `commits.session_commits`：Phase 4 中每次 commit 后追加，用于追溯本会话产生的提交
-- `stash_ref`：会话切换时用于暂存本会话的未提交变更，恢复时 pop 回来
 
 `state.json` 的 `isolation`：
 
@@ -627,17 +597,15 @@ devflow/*/screenshots/
     "base_ref": "<target-branch 的远端引用，如 origin/main>",
     "base_commit": "<会话初始时 origin/<target-branch> 的 commit hash>",
     "session_commits": []
-  },
-  "stash_ref": null
+  }
 }
 ```
 
 新增 `isolation` 字段记录会话隔离元数据，便于后续 CWD 守卫和 Phase 6 清理时定位。
 `autonomous` 字段预留自循环状态。
-`commits` 字段（v3.3 新增）记录 main 分支会话的基准 commit 和会话内产生的 commit 列表，用于 Phase 6 并发推送检测和 rebase 范围计算。
-`stash_ref` 字段（v3.4 新增，替代 v3.3 的 `working_snapshot`）记录会话切换时暂存的 stash SHA，恢复时 pop 回来。v3.4 不再检查工作区脏状态——未提交变更属于其他并行会话，本会话不对其进行任何操作。
+`commits` 字段（v3.3 新增）记录 main 分支会话的基准 commit 和会话内产生的 commit 列表，用于 Phase 6 并发推送检测和 rebase 范围计算。v3.4 不执行任何 `git stash` 操作——在共享 main 分支上，未提交变更归创建它的会话所有，其他会话不对其进行任何移动、暂存或清理。
 
-> **向后兼容：** 旧 state.json 缺少 `commits` 字段时，Phase 6.5 回退到原有的 `--ff-only` 硬停止行为。旧 `working_snapshot.stash_ref` 仍可被读取（如有），但 v3.4 不再产生 `working_snapshot` 对象。
+> **向后兼容：** 旧 state.json 缺少 `commits` 字段时，Phase 6.5 回退到原有的 `--ff-only` 硬停止行为。
 
 **自循环初始化：**
 - 若用户在 Phase 1.2 输入 `auto` / `autonomous` / `自循环`，初始化时设置 `autonomous.enabled = true`，`autonomous.status = "running"`，`autonomous.started_at` 为当前时间，`autonomous.started_from = "clarify"`，`autonomous.timeout_at = 当前时间 + 4 小时`
@@ -1137,8 +1105,6 @@ Phase 6 的收尾逻辑按 `isolation.mode` 分为三条路径：
 
 ### 6.2 预完成提交（兜底保护）
 
-所有模式共享：
-
 **目的：** 防止存在未提交文件（如下载的数据、临时配置等），会话结束后丢失。
 
 **注意：** 只有在 Phase 5 通过验收后，才执行提交。人工模式下需用户明确确认；自循环模式下由 AI 自评通过后自动执行。合并验证在后续 6.3/6.4/6.5 中按模式执行。
@@ -1157,7 +1123,7 @@ Phase 6 的收尾逻辑按 `isolation.mode` 分为三条路径：
    done
    ```
 
-2. **根据检测结果处理：**
+2. **根据检测结果处理（worktree / feat 模式）：**
 
    **情况 A — 无任何未提交变更：** 直接进入下一阶段。
 
@@ -1180,11 +1146,21 @@ Phase 6 的收尾逻辑按 `isolation.mode` 分为三条路径：
    - 不强制。输出警告："⚠️ 未提交文件将在会话结束后丢失，已确认跳过。"
    - 更新状态文件记录此决策。
 
+   **main 模式特殊处理（v3.4）：**
+
+   main 模式的工作区未提交变更可能属于其他并行会话，本会话只提交自己产生的变更。由于 Phase 4 中每个 T-xxx 任务已经完成 commit，到达 Phase 6.2 时本会话的代码通常已全部提交。Phase 6.2 在 main 模式下仅处理本会话生成的 untracked 文件：
+
+   - 对比 `git status --porcelain` 与 `commits.session_commits` 涉及的文件
+   - 仅 commit 与本会话相关的变更（`commits.session_commits` 中记录的 commit 所修改的文件，以及 `devflow/<feature>/` 跟踪文件）
+   - **不执行** `git add -u` 或 `git add -A`（会包含其他会话的未提交变更）
+   - 如果检测到与本会话无关的未提交变更，跳过并提示："检测到其他会话的未提交变更，本会话不对其进行操作"
+   - 如果 `devflow/<feature>/` 跟踪文件有未提交的，精确 add 这些文件后 commit
+
 3. **提交后二次确认：**
    ```bash
    git status --porcelain
    ```
-   必须干净才能标记完成。如果不干净（用户跳过了某些文件），再次提醒并确认。
+   必须干净才能标记完成（仅检查本会话相关文件）。其他会话的未提交变更忽略。
 
 ### 6.3 worktree 模式收尾
 
@@ -1676,15 +1652,7 @@ REMOTE=$(git rev-parse $BASE_REF)
 
 - **worktree 模式**：`ExitWorktree remove` + 删除 feature 分支
 - **feat 模式**：无 worktree 清理，保留 feature 分支
-- **main 模式**：无 worktree 清理，无分支删除。如该会话有 stash，清理之：
-
-```bash
-# 清理该会话的 stash（如果存在）
-STASH_REF=$(jq -r '.stash_ref // empty' devflow/<feature>/state.json)
-if [ -n "$STASH_REF" ]; then
-  git stash drop "$STASH_REF" 2>/dev/null || true
-fi
-```
+- **main 模式**：无 worktree 清理，无分支删除，无 stash 操作
 
 所有模式最后更新 `state.json`：`phase: "completed"`。
 
